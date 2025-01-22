@@ -1,1 +1,3 @@
-let () = print_endline "Hello world !"
+let () =
+  Test.test_easy ();
+  Test.test_hard ()

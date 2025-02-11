@@ -1,44 +1,19 @@
-(* CONSTANTES *)
+(* IMPORT *)
 
-let dir_easy = "testset_easy"
-
-let dir_hard = "testset_hard"
-
-let sep1 = String.make 30 '='
-
-let sep2 = String.make 30 '-'
-
-(* UTILS *)
-
-let get_gr testdir =
-  testdir |> Sys.readdir |> Array.to_seq |> List.of_seq
-  |> List.filter (fun filename -> Filename.extension filename = ".gr")
-  |> List.map (fun filename -> Format.sprintf "%s/%s" testdir filename)
-  |> List.sort compare
-
-let get_sol testdir =
-  testdir |> Sys.readdir |> Array.to_seq |> List.of_seq
-  |> List.filter (fun filename -> Filename.extension filename = ".sol")
-  |> List.map (fun filename -> Format.sprintf "%s/%s" testdir filename)
-  |> List.sort compare
-
-let print_int_list l =
-  let open Format in
-  let f fmt l =
-    pp_print_list ~pp_sep:(fun fmt () -> fprintf fmt "; ") pp_print_int fmt l
-  in
-  printf "[%a]@\n%!" f l
+open Utils
 
 (* TESTING *)
 
 let test_gen kind testdir =
   Format.printf "%s@\n%!" sep1;
-  Format.printf "Testing %s : %!" kind;
+  Format.printf "Testing %s : @\n@\n%!" kind;
 
   let ok =
     List.fold_left2
       begin
         fun flag file_gr file_sol ->
+          Format.printf "Instance %s...@\n%!" file_gr;
+
           let graph = Input.parse_input file_gr in
           let res = Dominating.dominating graph |> List.sort compare in
 
@@ -66,7 +41,7 @@ let test_gen kind testdir =
       true (get_gr testdir) (get_sol testdir)
   in
 
-  if ok then Format.printf "OK@\n%s@\n%!" sep1
+  if ok then Format.printf "@\nOK@\n%s@\n%!" sep1
   else Format.printf "@\n@\nTesting %s : ERROR@\n%s@\n%!" kind sep1
 
 let test_easy () = test_gen "easy" dir_easy

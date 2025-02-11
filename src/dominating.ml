@@ -1,13 +1,12 @@
-let rec all_subset = function
-  | [] -> [ ([], 0) ]
-  | x :: l ->
-    let subsets = all_subset l in
-    let new_subsets =
-      List.map
-        (fun (subset, subset_len) -> (x :: subset, subset_len + 1))
-        subsets
-    in
-    subsets @ new_subsets
+let iter_subsets f l =
+  let rec loop set prefix n =
+    match set with
+    | [] -> f prefix n
+    | x :: set ->
+      loop set (x :: prefix) (n + 1);
+      loop set prefix n
+  in
+  loop l [] 0
 
 let is_dominating (g : Graph.t) (n : int) (s : int list) =
   let c = List.fold_left (fun acc v -> (v :: Graph.neighbors g v) @ acc) [] s in
@@ -18,15 +17,17 @@ let dominating (g : Graph.t) : int list =
   let n = Graph.len g in
   let v = List.init n (fun i -> i) in
 
-  let res, _ =
-    List.fold_left
-      begin
-        fun (best, best_len) (subset, subset_len) ->
-          if is_dominating g n subset && subset_len < best_len then
-            (subset, subset_len)
-          else (best, best_len)
-      end
-      (v, n) (all_subset v)
-  in
+  let best = ref v in
+  let best_len = ref n in
 
-  res
+  iter_subsets
+    begin
+      fun subset subset_len ->
+        if is_dominating g n subset && subset_len < !best_len then begin
+          best := subset;
+          best_len := subset_len
+        end
+    end
+    v;
+
+  !best

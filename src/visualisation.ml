@@ -23,20 +23,25 @@ let get_pdf dir =
   List.iter
     begin
       fun path ->
-        Format.printf "Get the pdf of the graph %s...@\n%!" path;
+        let file_dot = Filename.remove_extension path ^ ".dot" in
+        let file_pdf = Filename.remove_extension path ^ ".pdf" in
 
-        let graph = Input.parse_input path in
+        if (not @@ Sys.file_exists file_dot) && (not @@ Sys.file_exists file_pdf)
+        then begin
+          Format.printf "Get the pdf of the graph %s...@\n%!" path;
 
-        let filename = Filename.remove_extension path ^ ".dot" in
-        let out_c = open_out_trunc filename in
+          let graph = Input.parse_input path in
 
-        write_head out_c;
-        write_body out_c graph;
-        write_bot out_c;
+          let out_c = open_out_trunc file_dot in
 
-        close_out out_c;
+          write_head out_c;
+          write_body out_c graph;
+          write_bot out_c;
 
-        compile_graph filename
+          close_out out_c;
+
+          compile_graph file_dot file_pdf
+        end
     end
     (get_gr dir)
 

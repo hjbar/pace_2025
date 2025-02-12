@@ -40,8 +40,5 @@ let print_int_list l =
 let open_out_trunc file =
   open_out_gen [ Open_wronly; Open_creat; Open_trunc ] 0o666 file
 
-let compile_graph file =
-  Sys.command
-  @@ Format.sprintf "dot -Tpdf %s -o %s" file
-       (Filename.remove_extension file ^ ".pdf")
-  |> ignore
+let compile_graph file_dot file_pdf =
+  Sys.command @@ Format.sprintf "dot -Tpdf %s -o %s" file_dot file_pdf |> ignore

@@ -14,6 +14,18 @@ let is_dominating (g : Graph.t) (n : int) (s : int list) =
   List.length c = n
 
 let dominating (g : Graph.t) : int list =
+  let min_deg = Graph.min_deg g in
+  let max_deg = Graph.max_deg g in
+
+  Format.printf "min_deg = %d@\n%!" min_deg;
+  Format.printf "max_deg = %d@\n%!" max_deg;
+
+  let min_size = Graph.min_dom g in
+  let max_size = Graph.max_dom g in
+
+  Format.printf "min_size = %d@\n%!" min_size;
+  Format.printf "max_size = %d@\n%!" max_size;
+
   let n = Graph.len g in
   let v = List.init n (fun i -> i) in
 
@@ -23,9 +35,12 @@ let dominating (g : Graph.t) : int list =
   iter_subsets
     begin
       fun subset subset_len ->
-        if is_dominating g n subset && subset_len < !best_len then begin
-          best := subset;
-          best_len := subset_len
+        if
+          min_size <= subset_len && subset_len <= max_size
+          && subset_len < !best_len && is_dominating g n subset
+        then begin
+          best_len := subset_len;
+          best := subset
         end
     end
     v;

@@ -17,7 +17,10 @@ let neighbors (g : t) (v : int) =
   in
   res
 
-let nb_egdes (g : t) : int =
+let nb_neighbors (g : t) (v : int) : int =
+  Array.fold_left (fun acc n -> if n = 1 then acc + 1 else acc) 0 g.(v)
+
+let nb_edges (g : t) : int =
   Array.fold_left
     (fun acc t ->
       Array.fold_left (fun acc n -> if n = 1 then acc + 1 else acc) acc t )

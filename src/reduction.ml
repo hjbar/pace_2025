@@ -1,5 +1,6 @@
 (* NOTE : to obtain the "correct" implementation, all programs here must run in O(n) time. *)
-(* Another graph implementation is definitely necessary. *)
+
+(*
 
 (* O(n^2) *)
 let nbcount_array (g : Graph.t) : int array =
@@ -12,13 +13,45 @@ let color_hash b w (len : int) : (int, bool) Hashtbl.t =
   List.iter (fun x -> Hashtbl.replace res x false) w;
   res
 
-(* O(n^2) *)
-(* let rec rule_1 (g : Graph.t) : Graph.t = g *)
+(* O(n^2) but expected complexity O(6n) *)
+let rec rule_1 wnew w g gi : unit =
+  match wnew with
+  | [] -> ()
+  | u :: wnew' ->
+    List.iter
+      begin
+        fun v ->
+          let is_edge = g.(u).(v) in
+          (
+            if is_edge 
+              then
+                gi.(u) <- gi.(u) - 1;
+                gi.(v) <- gi.(v) - 1
+          );
+          g.(u).(v) <-0;
+          g.(v).(u) <- 0
+      end w;
+    rule_1 wnew' w g gi
 
-let reduce_cautious (b : int list) (w : int list) (g : Graph.t) (k : int)
+(*
+let rec rule_2 w g gi : unit =
+  match w with
+  | [] -> ()
+  | u :: w' ->
+    if gi.(u) = 1
+      then 
+*)
+
+let reduce_cautious (b : int list) (w : int list) (g : Graph.t)
+  (gi : int array) (wnew : int list) (k : int)
   (s : int list) : int list * int list * Graph.t * int * int list =
+  
   (*
-  let nbcounts = nbcount_array g in
   let colors = color_hash b w (Graph.len g) in
   *)
-  (b, w, g, k, s)
+
+  rule_1 wnew w g gi;
+
+  (b, w, g, gi, k, s)
+
+*)

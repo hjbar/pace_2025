@@ -75,8 +75,6 @@ let remove_edge (g : t) i j : t =
     let newadj = Parray.set (Parray.set g.adj i newrowi) j newrowj in
     define_t newdeg newadj g.col
 
-(* == Other Functions specifically useful for the Algorithm == *)
-
 let rec add_edges (g : t) (es : (int * int) list) : t =
   match es with [] -> g | (i, j) :: es' -> add_edges (add_edge g i j) es'
 
@@ -88,6 +86,8 @@ let rec remove_edges (g : t) (es : (int * int) list) : t =
 let set_color g i c : t =
   let newcol = Parray.set g.col i c in
   define_t g.deg g.adj newcol
+
+(* == Other Functions specifically useful for the Algorithm == *)
 
 (* Used in naive algorithm *)
 let get_neighbors_list g i = IntSet.to_list @@ get_neighbors g i

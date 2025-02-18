@@ -1,5 +1,50 @@
-(* Une matrice n x n + les valeurs de la diagonale sont 1 *)
 
+(* Undirected unweighted (simple, in practice) graph *)
+
+module IntSet = SetMake(int) ;;
+
+type t = IntSet Parray.t ;;
+
+(* Utility Functions *)
+
+(* Initializes an empty graph *)
+let init (n : int) : t = Parray.init n (Fun.const IntSet.empty)
+
+let len (g : t) = Parray.length t
+
+(* == Get functions == *)
+
+let get_neighbors (g : t) i = Parray.get g i
+
+let get_degree (g : t) i = IntSet.cardinal @@ Parray.get g i
+
+let get_edge (g : t) i j =
+  let row = Parray.get g i in
+  begin match IntSet.find_opt row j with
+  | None -> 0
+  | Some _ -> 1
+  end
+
+let ( => ) (g : t) (m, n : int * int) : int = get_edge g m n
+
+(* == Modifications == *)
+
+let add_edge (g : t) i j : t =
+  let rowi', rowj' = Intset.add (Parray.get g i) j, Intset.add (Parray.get g j) i in
+  Parray.set (Parray.set g j rowj') i rowi'
+
+let ( <= ) (g : t) (m, n : int * int) : t = add_edge g m n
+
+(* == Functions for debugging == *)
+
+let total_edges (g : t) =
+  Parray.fold_left
+    begin
+      fun s acc = acc + (IntSet.cardinal s)
+    end
+    g 0
+
+(*
 type t = int array array
 
 (* Fonctions utilitaires *)
@@ -70,3 +115,4 @@ let max_dom (g : t) : int =
   done;
 
   int_of_float !cpt * len g / (min_deg + 1)
+*)

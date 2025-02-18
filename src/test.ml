@@ -4,6 +4,8 @@ open Utils
 
 (* TESTING *)
 
+let ( !+ ) l = List.map (fun i -> i + 1) l
+
 let test_gen kind testdir =
   Format.printf "%s@\n%!" sep1;
   Format.printf "Testing %s : @\n@\n%!" kind;
@@ -23,14 +25,17 @@ let test_gen kind testdir =
             if flag then Format.printf "@\n@\n@\n%!";
             Format.printf "%s@\n%!" sep2;
 
-            Format.printf "Error in test of %s@\n%!"
+            Format.printf "Result differs from Solution in test of %s@\n%!"
             @@ Filename.remove_extension file_gr;
 
+            if List.length res = List.length sol then
+              Format.printf "@\nHowever, they are of the same size";
+
             Format.printf "Result : %!";
-            print_int_list res;
+            print_int_list !+res;
 
             Format.printf "@\nSolution : %!";
-            print_int_list sol;
+            print_int_list !+sol;
 
             Format.printf "%s@\n@\n%!" sep2;
 

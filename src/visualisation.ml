@@ -1,6 +1,7 @@
 (* IMPORT *)
 
 open Utils
+open Graph.GraphNotation
 
 (* WRITE .DOT *)
 
@@ -11,7 +12,7 @@ let write_bot out_c = output_string out_c "\n}\n"
 let write_body out_c graph =
   for i = 0 to Graph.len graph - 1 do
     for j = i to Graph.len graph - 1 do
-      if graph.(i).(j) = 1 then begin
+      if graph @? (i, j) then begin
         output_string out_c @@ Format.sprintf "\t%d -- %d\n" (i + 1) (j + 1)
       end
     done

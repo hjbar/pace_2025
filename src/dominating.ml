@@ -50,17 +50,6 @@ let dominating_naive (g : Graph.t) (min_size : int) (max_size : int) : int list
 
 (* ===== Paper Implementation ===== *)
 
-let get_bw' g nv =
-  Graph.IntSet.fold
-    begin
-      fun v (b, w) ->
-        match Graph.get_color g v with
-        | Black -> (v :: b, w)
-        | White -> (b, v :: w)
-        | Null -> failwith "Null-colored node should not have a neighbor"
-    end
-    nv ([], [])
-
 let rec_graph g v' : Graph.t =
   let nv = Graph.get_neighbors g v' in
   let g' = Graph.set_colors_from_set g nv White in
@@ -85,7 +74,7 @@ let rec dominating_k_aux (g : Graph.t) (wnew : int list) (k : int) (s : int list
   else if k = 0 then None
   else
     let v = Graph.min_deg_blacknode g in
-    let b', w' = get_bw' g (Graph.IntSet.add v @@ Graph.get_neighbors g v) in
+    let b', w' = Graph.get_bw_inter_with_set g (Graph.get_neighbors_and_self g v) in
 
     let rec_f v' =
       dominating_k_aux (rec_graph g v')

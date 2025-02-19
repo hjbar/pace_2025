@@ -29,6 +29,8 @@ let len g = Parray.length g.deg
 
 let get_neighbors g i = Parray.get g.adj i
 
+let get_neighbors_and_self g i = IntSet.add i @@ Parray.get g.adj i
+
 let get_degree g i = Parray.get g.deg i
 
 let get_color g i = Parray.get g.col i
@@ -87,6 +89,20 @@ let set_color g i c : t =
   let newcol = Parray.set g.col i c in
   define_t g.deg g.adj newcol
 
+let get_blacknode_count g =
+  Parray.fold_left
+    begin
+      fun acc c -> if c = Black then acc + 1 else acc
+    end
+    0 g.col
+
+let get_whitenode_count g =
+  Parray.fold_left
+    begin
+      fun acc c -> if c = White then acc + 1 else acc
+    end
+    0 g.col
+
 (* == Other Utility == *)
 
 (* Not quite a map, since a graph is not iterable *)
@@ -117,22 +133,10 @@ let on_black f g i = if get_color g i = Black then f g i else g
 
 (* == Other Functions specifically useful for the Algorithm == *)
 
-(* Used in naive algorithm *)
+(* -- Used in naive algorithm -- *)
 let get_neighbors_list g i = IntSet.to_list @@ get_neighbors g i
 
-let get_blacknode_count g =
-  Parray.fold_left
-    begin
-      fun acc c -> if c = Black then acc + 1 else acc
-    end
-    0 g.col
 
-let get_whitenode_count g =
-  Parray.fold_left
-    begin
-      fun acc c -> if c = White then acc + 1 else acc
-    end
-    0 g.col
 
 (* Should be used in Rule 1 with vs the list of new white nodes *)
 let rec remove_neighbors (vs : int list) g i =
@@ -159,6 +163,17 @@ let min_deg_blacknode g =
       g
   in
   r
+
+let get_bw_inter_with_set g nv =
+  IntSet.fold
+    begin
+      fun v (b, w) ->
+        match get_color g v with
+        | Black -> (v :: b, w)
+        | White -> (b, v :: w)
+        | Null -> failwith "Null-colored node should not have a neighbor"
+    end
+    nv ([], [])
 
 let set_colors_from_set g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
 

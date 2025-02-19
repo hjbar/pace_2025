@@ -74,7 +74,9 @@ let rec dominating_k_aux (g : Graph.t) (wnew : int list) (k : int) (s : int list
   else if k = 0 then None
   else
     let v = Graph.min_deg_blacknode g in
-    let b', w' = Graph.get_bw_inter_with_set g (Graph.get_neighbors_and_self g v) in
+    let b', w' =
+      Graph.get_bw_inter_with_set g (Graph.get_neighbors_and_self g v)
+    in
 
     let rec_f v' =
       dominating_k_aux (rec_graph g v')

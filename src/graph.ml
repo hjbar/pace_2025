@@ -136,8 +136,6 @@ let on_black f g i = if get_color g i = Black then f g i else g
 (* -- Used in naive algorithm -- *)
 let get_neighbors_list g i = IntSet.to_list @@ get_neighbors g i
 
-
-
 (* Should be used in Rule 1 with vs the list of new white nodes *)
 let rec remove_neighbors (vs : int list) g i =
   match vs with

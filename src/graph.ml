@@ -87,16 +87,58 @@ let set_color g i c : t =
   let newcol = Parray.set g.col i c in
   define_t g.deg g.adj newcol
 
+(* == Other Utility == *)
+
+(* Not quite a map, since a graph is not iterable *)
+(* (t -> int -> t) -> t -> t *)
+let map_like f g =
+  let rec iter_ i g =
+    begin
+      match i with i' when i' = len g -> g | _ -> iter_ (i + 1) @@ f g i
+    end
+  in
+  iter_ 0 g
+
+(* (acc -> t -> int -> acc) -> acc -> t -> acc *)
+let fold_left_like f init g =
+  let rec fold_ i g acc =
+    begin
+      match i with
+      | i' when i' = len g -> acc
+      | _ -> fold_ (i + 1) g @@ f acc g i
+    end
+  in
+  fold_ 0 g init
+
+(* (t -> int -> t) -> (t -> int -> t) *)
+let on_white f g i = if get_color g i = White then f g i else g
+
+let on_black f g i = if get_color g i = Black then f g i else g
+
 (* == Other Functions specifically useful for the Algorithm == *)
 
 (* Used in naive algorithm *)
 let get_neighbors_list g i = IntSet.to_list @@ get_neighbors g i
 
+let get_blacknode_count g =
+  Parray.fold_left
+    begin
+      fun acc c -> if c = Black then acc + 1 else acc
+    end
+    0 g.col
+
+let get_whitenode_count g =
+  Parray.fold_left
+    begin
+      fun acc c -> if c = White then acc + 1 else acc
+    end
+    0 g.col
+
 (* Should be used in Rule 1 with vs the list of new white nodes *)
-let rec remove_neighbors g i (vs : int list) =
+let rec remove_neighbors (vs : int list) g i =
   match vs with
   | [] -> g
-  | v :: vs' -> remove_neighbors (remove_edge g i v) i vs'
+  | v :: vs' -> remove_neighbors vs' (remove_edge g i v) i
 
 (* Used multiple times when a node is "removed" *)
 let ignore_node g i =
@@ -105,14 +147,20 @@ let ignore_node g i =
   let newcol = Parray.set g.col i Null in
   define_t newdeg newadj newcol
 
-(* t -> (t -> int -> t) -> t *)
-let iter_on_nodes g f =
-  let rec iter_ i g =
-    begin
-      match i with i' when i' = len g -> g | _ -> iter_ (i - 1) @@ f g i
-    end
+let min_deg_blacknode g =
+  let r, _ =
+    fold_left_like
+      begin
+        fun (node, deg) g i ->
+          let d = get_degree g i in
+          if is_black g i && deg > d then (i, d) else (node, deg)
+      end
+      (0, len g) (* We assume a simple graph *)
+      g
   in
-  iter_ 0 g
+  r
+
+let set_colors_from_set g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
 
 (* == Functions for debugging == *)
 
@@ -121,14 +169,14 @@ let total_edges g = Parray.fold_left (fun i acc -> acc + i) 0 g.deg
 let min_deg g =
   Parray.fold_left
     begin
-      fun i acc -> if acc > i then i else acc
+      fun acc i -> if acc > i then i else acc
     end
     (len g) g.deg
 
 let max_deg g =
   Parray.fold_left
     begin
-      fun i acc -> if acc < i then i else acc
+      fun acc i -> if acc < i then i else acc
     end
     0 g.deg
 

@@ -131,6 +131,8 @@ let on_white f g i = if get_color g i = White then f g i else g
 
 let on_black f g i = if get_color g i = Black then f g i else g
 
+let on_deg d f g i = if get_degree g i = d then f g i else g
+
 (* == Other Functions specifically useful for the Algorithm == *)
 
 (* -- Used in naive algorithm -- *)

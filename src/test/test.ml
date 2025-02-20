@@ -6,7 +6,7 @@ open Utils
 
 let ( !+ ) l = List.map (fun i -> i + 1) l
 
-let test_gen kind testdir =
+let test_gen kind testdir algo =
   Format.printf "%s@\n%!" sep1;
   Format.printf "Testing %s : @\n@\n%!" kind;
 
@@ -17,7 +17,7 @@ let test_gen kind testdir =
           Format.printf "Instance %s...@\n%!" file_gr;
 
           let graph = Input.parse_input file_gr in
-          let res = Dominating.dominating graph |> List.sort compare in
+          let res = algo graph |> List.sort compare in
 
           let sol = Output.read_output file_sol |> List.sort compare in
 
@@ -49,6 +49,6 @@ let test_gen kind testdir =
   if ok then Format.printf "@\nOK@\n%s@\n%!" sep1
   else Format.printf "@\n@\nTesting %s : ERROR@\n%s@\n%!" kind sep1
 
-let test_easy () = test_gen "easy" dir_easy
+let test_easy = test_gen "easy" dir_easy
 
-let test_hard () = test_gen "hard" dir_hard
+let test_hard = test_gen "hard" dir_hard

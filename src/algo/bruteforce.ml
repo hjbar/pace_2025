@@ -13,8 +13,8 @@ let iter_subsets f l =
 let is_dominating (g : Graph.t) (n : int) (s : int list) =
   let c =
     List.fold_left (fun acc v -> (v :: Graph.get_neighbors_list g v) @ acc) [] s
+    |> List.sort_uniq compare
   in
-  let c = List.sort_uniq compare c in
   List.length c = n
 
 let dominating_aux (g : Graph.t) (min_size : int) (max_size : int) : int list =

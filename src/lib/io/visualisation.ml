@@ -12,9 +12,8 @@ let write_bot out_c = output_string out_c "\n}\n"
 let write_body out_c graph =
   for i = 0 to Graph.len graph - 1 do
     for j = i to Graph.len graph - 1 do
-      if graph @? (i, j) then begin
+      if graph @? (i, j) then
         output_string out_c @@ Format.sprintf "\t%d -- %d\n" (i + 1) (j + 1)
-      end
     done
   done
 
@@ -32,7 +31,6 @@ let get_pdf dir =
           Format.printf "Get the pdf of the graph %s...@\n%!" path;
 
           let graph = Input.parse_input path in
-
           let out_c = open_out_trunc file_dot in
 
           write_head out_c;
@@ -40,7 +38,6 @@ let get_pdf dir =
           write_bot out_c;
 
           close_out out_c;
-
           compile_graph file_dot file_pdf
         end
     end

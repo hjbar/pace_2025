@@ -21,7 +21,7 @@ let init_empty (n : int) : t =
   ; col = Parray.init n (Fun.const Black)
   }
 
-let define_t deg_ adj_ col_ = { deg = deg_; adj = adj_; col = col_ }
+let define_t deg adj col = { deg; adj; col }
 
 (* == Get functions == *)
 
@@ -47,9 +47,7 @@ let is_edge g i j =
   if is_singleton g i || is_singleton g j then false
   else
     let row = Parray.get g.adj i in
-    begin
-      match IntSet.find_opt j row with None -> false | Some _ -> true
-    end
+    IntSet.find_opt j row |> Option.is_some
 
 (* == Modifications == *)
 
@@ -77,54 +75,45 @@ let remove_edge (g : t) i j : t =
     let newadj = Parray.set (Parray.set g.adj i newrowi) j newrowj in
     define_t newdeg newadj g.col
 
-let rec add_edges (g : t) (es : (int * int) list) : t =
-  match es with [] -> g | (i, j) :: es' -> add_edges (add_edge g i j) es'
+let add_edges (g : t) (es : (int * int) list) : t =
+  List.fold_left (fun g (i, j) -> add_edge g i j) g es
 
-let rec remove_edges (g : t) (es : (int * int) list) : t =
-  match es with
-  | [] -> g
-  | (i, j) :: es' -> remove_edges (remove_edge g i j) es'
+let remove_edges (g : t) (es : (int * int) list) : t =
+  List.fold_left (fun g (i, j) -> remove_edge g i j) g es
 
 let set_color g i c : t =
   let newcol = Parray.set g.col i c in
   define_t g.deg g.adj newcol
 
-let get_blacknode_count g =
-  Parray.fold_left
-    begin
-      fun acc c -> if c = Black then acc + 1 else acc
-    end
-    0 g.col
+let get_color_count c g =
+  Parray.fold_left (fun acc c' -> if c' = c then acc + 1 else acc) 0 g.col
 
-let get_whitenode_count g =
-  Parray.fold_left
-    begin
-      fun acc c -> if c = White then acc + 1 else acc
-    end
-    0 g.col
+let get_blacknode_count = get_color_count Black
+
+let get_whitenode_count = get_color_count White
 
 (* == Other Utility == *)
 
 (* Not quite a map, since a graph is not iterable *)
 (* (t -> int -> t) -> t -> t *)
 let map_like f g =
-  let rec iter_ i g =
+  let rec iter i g =
     begin
-      match i with i' when i' = len g -> g | _ -> iter_ (i + 1) @@ f g i
+      match i with i' when i' = len g -> g | _ -> iter (i + 1) @@ f g i
     end
   in
-  iter_ 0 g
+  iter 0 g
 
 (* (acc -> t -> int -> acc) -> acc -> t -> acc *)
 let fold_left_like f init g =
-  let rec fold_ i g acc =
+  let rec fold i g acc =
     begin
       match i with
       | i' when i' = len g -> acc
-      | _ -> fold_ (i + 1) g @@ f acc g i
+      | _ -> fold (i + 1) g @@ f acc g i
     end
   in
-  fold_ 0 g init
+  fold 0 g init
 
 (* (t -> int -> t) -> (t -> int -> t) *)
 let on_white f g i = if get_color g i = White then f g i else g
@@ -139,10 +128,8 @@ let on_deg d f g i = if get_degree g i = d then f g i else g
 let get_neighbors_list g i = IntSet.to_list @@ get_neighbors g i
 
 (* Should be used in Rule 1 with vs the list of new white nodes *)
-let rec remove_neighbors (vs : int list) g i =
-  match vs with
-  | [] -> g
-  | v :: vs' -> remove_neighbors vs' (remove_edge g i v) i
+let remove_neighbors (vs : int list) g i =
+  List.fold_left (fun g v -> remove_edge g i v) g vs
 
 (* Used multiple times when a node is "removed" *)
 let ignore_node g i =
@@ -182,18 +169,10 @@ let set_colors_from_set g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
 let total_edges g = Parray.fold_left (fun i acc -> acc + i) 0 g.deg
 
 let min_deg g =
-  Parray.fold_left
-    begin
-      fun acc i -> if acc > i then i else acc
-    end
-    (len g) g.deg
+  Parray.fold_left (fun acc i -> if acc > i then i else acc) (len g) g.deg
 
 let max_deg g =
-  Parray.fold_left
-    begin
-      fun acc i -> if acc < i then i else acc
-    end
-    0 g.deg
+  Parray.fold_left (fun acc i -> if acc < i then i else acc) 0 g.deg
 
 let min_dom g : int =
   float (len g) /. (float (max_deg g) +. 1.) |> Float.ceil |> int_of_float

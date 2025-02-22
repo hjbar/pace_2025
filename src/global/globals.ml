@@ -4,7 +4,7 @@ type kind_algo =
   | BruteForce
   | Reduction
 
-let kind_algo = BruteForce
+let kind_algo = Reduction
 
 (* Which tests are selected *)
 

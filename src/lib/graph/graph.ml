@@ -85,6 +85,8 @@ let set_color g i c : t =
   let newcol = Parray.set g.col i c in
   define_t g.deg g.adj newcol
 
+let set_colors g vs c = List.fold_left (fun g i -> set_color g i c) g vs
+
 let get_color_count c g =
   Parray.fold_left (fun acc c' -> if c' = c then acc + 1 else acc) 0 g.col
 
@@ -125,7 +127,7 @@ let on_deg d f g i = if get_degree g i = d then f g i else g
 (* == Other Functions specifically useful for the Algorithm == *)
 
 (* -- Used in naive algorithm -- *)
-let get_neighbors_list g i = IntSet.to_list @@ get_neighbors g i
+let get_neighbors_list g i = IntSet.elements @@ get_neighbors g i
 
 (* Should be used in Rule 1 with vs the list of new white nodes *)
 let remove_neighbors (vs : int list) g i =
@@ -133,10 +135,9 @@ let remove_neighbors (vs : int list) g i =
 
 (* Used multiple times when a node is "removed" *)
 let ignore_node g i =
-  let newdeg = Parray.set g.deg i 0 in
-  let newadj = Parray.set g.adj i IntSet.empty in
+  let newg = remove_neighbors (List.init (len g) Fun.id) g i in
   let newcol = Parray.set g.col i Null in
-  define_t newdeg newadj newcol
+  define_t newg.deg newg.adj newcol
 
 let min_deg_blacknode g =
   let r, _ =
@@ -162,7 +163,38 @@ let get_bw_inter_with_set g nv =
     end
     nv ([], [])
 
-let set_colors_from_set g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
+(*
+let nodes_over_4 g =
+  let s = IntSet.of_list (List.init (len g) Fun.id) in
+  fold_left_like
+    begin
+      fun s g i -> if get_degree g i < 4 then IntSet.remove i s else s
+    end
+    s g
+
+(* Preprocesses deg(G'), with G' := G \ { v : deg_G(v) < 4 }. *)
+let deg_over_4 g : int array =
+  let arr = Array.init (len g) (Fun.const 0) in
+  let nodes = nodes_over_4 g in
+  let _, res =
+    Parray.fold_left
+      begin
+        fun (i, res) nv ->
+          let x = IntSet.cardinal @@ IntSet.inter nodes @@ nv in
+          (i + 1, Array.set res i x)
+      end
+      (0, arr) g.adj
+  in
+  res
+*)
+
+(* Preprocesses G' := G \ { v : deg_G(v) < 4 }. *)
+let g_over_4 g =
+  fold_left_like
+    begin
+      fun g' g i -> if get_degree g i < 4 then ignore_node g' i else g'
+    end
+    g g
 
 (* == Functions for debugging == *)
 

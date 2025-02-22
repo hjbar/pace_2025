@@ -13,7 +13,7 @@ type kind_test =
   | Hard
   | All
 
-let kind_test = Easy
+let kind_test = All
 
 (* Perform visualisation ? *)
 

@@ -71,6 +71,7 @@ let rule_5_6_row_part2 g i =
     match Graph.get_neighbors_list g i with
     | [ u1; u2 ] when Graph.is_black g u1 && Graph.is_black g u2 ->
       g |> rem (u1, u2)
+    | [ _; _ ] -> g
     | _ -> failwith "mismatch rule 5/6 pt2"
   end
   | 3 -> begin
@@ -78,6 +79,7 @@ let rule_5_6_row_part2 g i =
     | [ u1; u2; u3 ]
       when Graph.is_black g u1 && Graph.is_black g u2 && Graph.is_black g u3 ->
       g |> rem (u1, u2) |> rem (u2, u3) |> rem (u1, u3)
+    | [ _; _; _ ] -> g
     | _ -> failwith "mismatch rule 5/6 pt2"
   end
   | _ -> g

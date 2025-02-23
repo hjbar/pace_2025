@@ -23,6 +23,10 @@ let init_empty (n : int) : t =
 
 let define_t deg adj col = { deg; adj; col }
 
+let copy g =
+  let copy_parray a = Parray.init (Parray.length a) (fun i -> Parray.get a i) in
+  define_t (copy_parray g.deg) (copy_parray g.adj) (copy_parray g.col)
+
 (* == Get functions == *)
 
 let len g = Parray.length g.deg

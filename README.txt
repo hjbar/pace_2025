@@ -10,4 +10,3 @@ Dépendances apt :
 Dépendances opam :
 - dune
 - ocamlformat
-- lwt

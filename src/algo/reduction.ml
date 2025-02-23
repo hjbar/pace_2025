@@ -1,5 +1,3 @@
-open Graph.GraphNotation
-
 (* NOTE : to obtain the "correct" implementation, all programs here must run in O(n) time. *)
 
 (* Rules 1 and 2 can be applied before all the other rules *)
@@ -30,6 +28,7 @@ let rule_5_6_helper : (int * int, int) Hashtbl.t = Hashtbl.create 100
  * It may perform some redundant checks performed by rule_5_6_row_part2.
  * The alternative is to have g' be a directed graph, or some other comnpromise. *)
 let rule_5_6_row_part1 g' g i =
+  let open Graph.GraphNotation in
   match Graph.get_neighbors_list g i with
   | [ u1; u2 ] when Graph.is_black g u1 && Graph.is_black g u2 ->
     let degu1' = Graph.get_degree g' u1 in
@@ -59,6 +58,7 @@ let rule_5_6_row_part1 g' g i =
   | _ -> failwith "mismatch rule 5/6 pt1"
 
 let rule_5_6_row_part2 g i =
+  let open Graph.GraphNotation in
   let rem (u1, u2) g =
     begin
       match Hashtbl.find_opt rule_5_6_helper (u1, u2) with
@@ -93,6 +93,7 @@ let rule_5_6' g =
 (* Technically, checking for Graph.is_black is redundant,
  * since i is white and rule 1 has been applied. *)
 let rule_4_7_row g i =
+  let open Graph.GraphNotation in
   match Graph.get_degree g i with
   | 2 ->
     (* rule 4 *)
@@ -137,10 +138,21 @@ let rec_graph g v' : Graph.t =
   let g' = Graph.set_colors g nv White in
   Graph.ignore_node g' v'
 
+(* Parallel stuff *)
+
+(*
+exception Stop
+
+let stop = Atomic.make false
+*)
+
 (* Black vertices are non-dominated *)
 (* White vertices are dominated *)
 let rec dominating_k_aux (g : Graph.t) (wnew : int list) (k : int) (s : int list)
   : int list option =
+  (* Parallel stop ? *)
+  (* if Atomic.get stop then raise Stop; *)
+
   (* Preprocessing *)
   let g, k, s = reduce_cautious g wnew k s in
 
@@ -166,10 +178,33 @@ let rec dominating_k_aux (g : Graph.t) (wnew : int list) (k : int) (s : int list
         (k - 1) (v' :: s)
     in
 
-    let s' = List.find_map rec_f b' in
-    if s' = None then List.find_map rec_f w' else s'
+    (* let s' = List.find_map rec_f b' in *)
+    let s' =
+      List.fold_left
+        begin
+          fun acc e ->
+            match (rec_f e, acc) with
+            | None, _ -> acc
+            | Some l1, Some l2 when List.compare_lengths l1 l2 >= 0 -> acc
+            | res, _ -> res
+        end
+        None b'
+    in
+    (* if s' = None then List.find_map rec_f w' else s' *)
+    if s' = None then
+      List.fold_left
+        begin
+          fun acc e ->
+            match (rec_f e, acc) with
+            | None, _ -> acc
+            | Some l1, Some l2 when List.compare_lengths l1 l2 >= 0 -> acc
+            | res, _ -> res
+        end
+        None w'
+    else s'
 
 let dominating_k (g : Graph.t) (k : int) : int list option =
+  (* try dominating_k_aux g [] k [] with Stop -> None *)
   dominating_k_aux g [] k []
 
 (* Note : huge inefficiency here *)
@@ -194,6 +229,54 @@ let dominating_paper (g : Graph.t) (min : int) (max : int) : int list =
     | None -> failwith "Maximum dominating set size is not viable"
     | Some s -> dominating_binsearch g min max s
   end
+
+(*
+let dominating_paper (g : Graph.t) (min : int) (max : int) : int list =
+  Atomic.set stop false;
+
+  let nb_domains = Domain.recommended_domain_count () in
+  let c = float (max - min) /. float nb_domains |> Float.ceil |> int_of_float in
+
+  let args =
+    List.init nb_domains (fun i -> max - (i * c))
+    |> List.filter (fun n -> min <= n)
+    |> List.sort_uniq compare
+  in
+
+  List.iter (fun i -> Format.printf "%d %!" i) args;
+  Format.printf "@\n%!";
+
+  let doms =
+    List.map
+      begin
+        fun n ->
+          Domain.spawn @@ fun () ->
+          match dominating_k (Graph.copy g) n with
+          | Some _ as res when not @@ Atomic.get stop ->
+            Atomic.set stop true;
+            Format.printf "Res of f(%d) = %d@\n%!" n
+              (List.length @@ Option.get res);
+            res
+          | _ -> None
+      end
+      args
+  in
+
+  let res =
+    List.fold_left
+      begin
+        fun acc d ->
+          match (Domain.join d, acc) with
+          | None, _ -> acc
+          | Some res, None -> Some res
+          | Some r1, Some r2 when List.compare_lengths r1 r2 >= 0 -> acc
+          | res, _ -> res
+      end
+      None doms
+  in
+
+  match res with None -> failwith "No solution" | Some res -> res
+*)
 
 (* == Main Function == *)
 

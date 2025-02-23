@@ -200,18 +200,84 @@ let g_over_4 g =
     end
     g g
 
-(* == Utils for {min, max}_dom == *)
+(* == Function for min_deg == *)
 
 let min_deg g =
   Parray.fold_left (fun acc i -> if acc > i then i else acc) (len g) g.deg
 
+(* == Function for max_deg == *)
+
 let max_deg g =
   Parray.fold_left (fun acc i -> if acc < i then i else acc) 0 g.deg
 
+(* == Function for excentricity (radius & diameter) == *)
+
+let floyd_warshall g =
+  let len = len g in
+
+  let dist = Array.make_matrix len len max_int in
+  for i = 0 to len - 1 do
+    dist.(i).(i) <- 0
+  done;
+
+  for i = 0 to len - 1 do
+    IntSet.iter
+      begin
+        fun j ->
+          dist.(i).(j) <- 1;
+          dist.(j).(i) <- 1
+      end
+      (get_neighbors g i)
+  done;
+
+  for k = 0 to len - 1 do
+    for i = 0 to len - 1 do
+      for j = 0 to len - 1 do
+        let ik = dist.(i).(k) in
+        let kj = dist.(k).(j) in
+        let ij = dist.(i).(j) in
+
+        if ik <> max_int && kj <> max_int then dist.(i).(j) <- min ij (ik + kj)
+      done
+    done
+  done;
+
+  dist
+
+let excentricity g =
+  let len = len g in
+  let dist = floyd_warshall g in
+
+  let exc = Array.init len (fun i -> Array.fold_left max min_int dist.(i)) in
+
+  let r = Array.fold_left min max_int exc in
+  let d = Array.fold_left max min_int exc in
+
+  (r, d)
+
 (* == Functions for min_dom == *)
 
+let min_dom_b1 ~len ~max_deg =
+  float len /. float (max_deg + 1) |> Float.floor |> int_of_float
+
+let min_dom_b2 ~len ~diameter =
+  if len <= 1 then min_int
+  else float (diameter + 1) /. 3. |> Float.floor |> int_of_float
+
+let min_dom_b3 ~len ~radius =
+  if len <= 1 then min_int
+  else float (2 * radius) /. 3. |> Float.floor |> int_of_float
+
 let min_dom g =
-  float (len g) /. float (max_deg g + 1) |> Float.floor |> int_of_float
+  let len = len g in
+  let max_deg = max_deg g in
+  let radius, diameter = excentricity g in
+
+  let b1 = min_dom_b1 ~len ~max_deg in
+  let b2 = min_dom_b2 ~len ~diameter in
+  let b3 = min_dom_b3 ~len ~radius in
+
+  List.fold_left max min_int [ b1; b2; b3 ]
 
 (* == Functions for max_dom == *)
 

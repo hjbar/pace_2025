@@ -200,9 +200,7 @@ let g_over_4 g =
     end
     g g
 
-(* == Functions for debugging == *)
-
-let total_edges g = Parray.fold_left (fun i acc -> acc + i) 0 g.deg
+(* == Utils for {min, max}_dom == *)
 
 let min_deg g =
   Parray.fold_left (fun acc i -> if acc > i then i else acc) (len g) g.deg
@@ -210,20 +208,75 @@ let min_deg g =
 let max_deg g =
   Parray.fold_left (fun acc i -> if acc < i then i else acc) 0 g.deg
 
-let min_dom g : int =
-  float (len g) /. (float (max_deg g) +. 1.) |> Float.ceil |> int_of_float
+(* == Functions for min_dom == *)
+
+let min_dom g =
+  float (len g) /. float (max_deg g + 1) |> Float.floor |> int_of_float
+
+(* == Functions for max_dom == *)
+
+let max_dom_b1 ~len ~max_deg = len - max_deg
+
+let max_dom_b2 ~len = float len /. 2. |> Float.ceil |> int_of_float
+
+let max_dom_b3 ~len ~min_deg =
+  if min_deg < 2 then max_int
+  else float (len + 2) /. 3. |> Float.ceil |> int_of_float
+
+let max_dom_b4 ~len ~min_deg =
+  if min_deg < 2 then max_int
+  else float (2 * len) /. 5. |> Float.ceil |> int_of_float
+
+let max_dom_b5 ~len ~min_deg =
+  if min_deg < 3 then max_int
+  else float (3 * len) /. 8. |> Float.ceil |> int_of_float
+
+let max_dom_b6 ~len ~min_deg =
+  if min_deg < 4 then max_int
+  else float (4 * len) /. 11. |> Float.ceil |> int_of_float
+
+let max_dom_b7 ~len ~min_deg =
+  if min_deg < 5 then max_int else float len /. 3. |> Float.ceil |> int_of_float
+
+let max_dom_b8 ~len ~min_deg =
+  if min_deg < 6 then max_int
+  else float (127 * len) /. 418. |> Float.ceil |> int_of_float
+
+let max_dom_b9 ~len ~min_deg =
+  if min_deg < 1 then max_int
+  else begin
+    let d = min_deg + 1 in
+    let cpt = ref 0. in
+
+    for j = 1 to d do
+      cpt := !cpt +. (1. /. float j)
+    done;
+
+    let c1 = float len /. float d in
+    let c2 = !cpt in
+    c1 *. c2 |> Float.ceil |> int_of_float
+  end
 
 let max_dom g : int =
+  let len = len g in
   let min_deg = min_deg g in
-  if min_deg < 1 then failwith "MINIMUM DEGREE < 1";
+  let max_deg = max_deg g in
 
-  let cpt = ref 0. in
+  let b1 = max_dom_b1 ~len ~max_deg in
+  let b2 = max_dom_b2 ~len in
+  let b3 = max_dom_b3 ~len ~min_deg in
+  let b4 = max_dom_b4 ~len ~min_deg in
+  let b5 = max_dom_b5 ~len ~min_deg in
+  let b6 = max_dom_b6 ~len ~min_deg in
+  let b7 = max_dom_b7 ~len ~min_deg in
+  let b8 = max_dom_b8 ~len ~min_deg in
+  let b9 = max_dom_b9 ~len ~min_deg in
 
-  for j = 1 to min_deg + 1 do
-    cpt := (1. /. float j) +. !cpt
-  done;
+  List.fold_left min max_int [ b1; b2; b3; b4; b5; b6; b7; b8; b9 ]
 
-  int_of_float !cpt * len g / (min_deg + 1)
+(* == Functions for debugging == *)
+
+let total_edges g = Parray.fold_left (fun i acc -> acc + i) 0 g.deg
 
 (* Notation for ease of use *)
 

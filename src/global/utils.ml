@@ -4,6 +4,8 @@ let dir_easy = "testset_easy"
 
 let dir_hard = "testset_hard"
 
+let dir_final = "testset_final"
+
 let sep1 = String.make 30 '='
 
 let sep2 = String.make 30 '-'

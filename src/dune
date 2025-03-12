@@ -1,4 +1,5 @@
 (include_subdirs unqualified)
 
 (executable
- (name main))
+ (name main)
+ (ocamlopt_flags -O3 -unbox-closures -inline 1000))

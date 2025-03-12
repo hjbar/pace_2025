@@ -11,6 +11,7 @@ let kind_algo = Reduction
 type kind_test =
   | Easy
   | Hard
+  | Final
   | All
 
 let kind_test = All

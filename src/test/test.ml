@@ -52,3 +52,5 @@ let test_gen kind testdir algo =
 let test_easy = test_gen "easy" dir_easy
 
 let test_hard = test_gen "hard" dir_hard
+
+let test_final = test_gen "final" dir_final

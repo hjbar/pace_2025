@@ -89,7 +89,7 @@ let set_color g i c : t =
   let newcol = Parray.set g.col i c in
   define_t g.deg g.adj newcol
 
-let set_colors g vs c = List.fold_left (fun g i -> set_color g i c) g vs
+let set_colors g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
 
 let get_color_count c g =
   Parray.fold_left (fun acc c' -> if c' = c then acc + 1 else acc) 0 g.col
@@ -103,20 +103,20 @@ let get_whitenode_count = get_color_count White
 (* Not quite a map, since a graph is not iterable *)
 (* (t -> int -> t) -> t -> t *)
 let map_like f g =
+  let len_ = len g in
   let rec iter i g =
     begin
-      match i with i' when i' = len g -> g | _ -> iter (i + 1) @@ f g i
+      match i with i' when i' = len_ -> g | _ -> iter (i + 1) @@ f g i
     end
   in
   iter 0 g
 
 (* (acc -> t -> int -> acc) -> acc -> t -> acc *)
 let fold_left_like f init g =
+  let len_ = len g in
   let rec fold i g acc =
     begin
-      match i with
-      | i' when i' = len g -> acc
-      | _ -> fold (i + 1) g @@ f acc g i
+      match i with i' when i' = len_ -> acc | _ -> fold (i + 1) g @@ f acc g i
     end
   in
   fold 0 g init
@@ -134,14 +134,27 @@ let on_deg d f g i = if get_degree g i = d then f g i else g
 let get_neighbors_list g i = IntSet.elements @@ get_neighbors g i
 
 (* Should be used in Rule 1 with vs the list of new white nodes *)
-let remove_neighbors (vs : int list) g i =
-  List.fold_left (fun g v -> remove_edge g i v) g vs
+let remove_neighbors vs g i = IntSet.fold (fun v g -> remove_edge g i v) vs g
 
 (* Used multiple times when a node is "removed" *)
 let ignore_node g i =
-  let newg = remove_neighbors (List.init (len g) Fun.id) g i in
+  let g =
+    IntSet.fold
+      begin
+        fun n g ->
+          define_t
+            (Parray.set g.deg n (Parray.get g.deg n - 1))
+            (Parray.set g.adj n @@ IntSet.remove i @@ Parray.get g.adj n)
+            g.col
+      end
+      (get_neighbors g i) g
+  in
+
+  let newdeg = Parray.set g.deg i 0 in
+  let newadj = Parray.set g.adj i IntSet.empty in
   let newcol = Parray.set g.col i Null in
-  define_t newg.deg newg.adj newcol
+
+  define_t newdeg newadj newcol
 
 let min_deg_blacknode g =
   let r, _ =
@@ -155,42 +168,6 @@ let min_deg_blacknode g =
       g
   in
   r
-
-let get_bw_inter_with_set g nv =
-  IntSet.fold
-    begin
-      fun v (b, w) ->
-        match get_color g v with
-        | Black -> (v :: b, w)
-        | White -> (b, v :: w)
-        | Null -> failwith "Null-colored node should not have a neighbor"
-    end
-    nv ([], [])
-
-(*
-let nodes_over_4 g =
-  let s = IntSet.of_list (List.init (len g) Fun.id) in
-  fold_left_like
-    begin
-      fun s g i -> if get_degree g i < 4 then IntSet.remove i s else s
-    end
-    s g
-
-(* Preprocesses deg(G'), with G' := G \ { v : deg_G(v) < 4 }. *)
-let deg_over_4 g : int array =
-  let arr = Array.init (len g) (Fun.const 0) in
-  let nodes = nodes_over_4 g in
-  let _, res =
-    Parray.fold_left
-      begin
-        fun (i, res) nv ->
-          let x = IntSet.cardinal @@ IntSet.inter nodes @@ nv in
-          (i + 1, Array.set res i x)
-      end
-      (0, arr) g.adj
-  in
-  res
-*)
 
 (* Preprocesses G' := G \ { v : deg_G(v) < 4 }. *)
 let g_over_4 g =

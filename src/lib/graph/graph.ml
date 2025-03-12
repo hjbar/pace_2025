@@ -128,6 +128,8 @@ let on_black f g i = if get_color g i = Black then f g i else g
 
 let on_deg d f g i = if get_degree g i = d then f g i else g
 
+let on_deg_nz f g i = if get_degree g i <> 0 then f g i else g
+
 (* == Other Functions specifically useful for the Algorithm == *)
 
 (* -- Used in naive algorithm -- *)
@@ -168,14 +170,6 @@ let min_deg_blacknode g =
       g
   in
   r
-
-(* Preprocesses G' := G \ { v : deg_G(v) < 4 }. *)
-let g_over_4 g =
-  fold_left_like
-    begin
-      fun g' g i -> if get_degree g i < 4 then ignore_node g' i else g'
-    end
-    g g
 
 (* == Function for min_deg == *)
 

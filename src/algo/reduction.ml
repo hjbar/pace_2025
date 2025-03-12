@@ -4,18 +4,22 @@
 (* Rules >1 cannot trigger Rule 1, and Rules >2 cannot trigger Rule 2 *)
 
 let rule_1 wnew g =
-  Graph.map_like (Graph.on_white @@ Graph.remove_neighbors wnew) g
+  Graph.map_like
+    (Graph.on_deg_nz @@ Graph.on_white @@ Graph.remove_neighbors wnew)
+    g
 
 (* A simple pass is sufficient since we can assume rule 1 has been applied *)
 (* This rule might also be able to be applied simultaneously with rules 4 to 7 *)
 let rule_2 g =
-  Graph.map_like (Graph.on_deg 1 @@ Graph.on_white Graph.ignore_node) g
+  let rule_2_row g i =
+    Graph.remove_edge g (Graph.IntSet.choose @@ Graph.get_neighbors g i) i
+  in
+  Graph.map_like (Graph.on_deg 1 @@ Graph.on_white rule_2_row) g
 
 (* Rule 3 is optional *)
 (* Rule 3 can trigger Rules 4, 5', 6', 7 and be triggered by them.*)
 
 let rule_3 g k s =
-  let open Graph.GraphNotation in
   let len_ = Graph.len g in
   let rec get_candidates g i c s cand =
     begin
@@ -28,7 +32,6 @@ let rule_3 g k s =
           && (not @@ Graph.IntSet.mem i cand)
         then
           let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
-          let g = Graph.set_color (g <!= (i, u)) i Null in
           get_candidates g (i + 1) (c + 1) (u :: s)
           @@ Graph.IntSet.union cand
           @@ Graph.get_neighbors_and_self g u
@@ -77,7 +80,7 @@ let rule_3 g k s =
 let rule_4_7_row g i =
   let open Graph.GraphNotation in
   match Graph.get_degree g i with
-  | 2 ->
+  | 2 when Graph.is_white g i ->
     (* rule 4, 5, 6 *)
     let ni = Graph.get_neighbors g i in
     if
@@ -86,7 +89,7 @@ let rule_4_7_row g i =
       @@ Graph.IntSet.min_elt ni
     then g // i
     else g
-  | 3 ->
+  | 3 when Graph.is_white g i ->
     (* rule 7 *)
     let ni = Graph.get_neighbors g i in
     let n, _ =
@@ -109,7 +112,7 @@ let rule_4_7_row g i =
     *)
   | _ -> g
 
-let rule_4_7 g = Graph.map_like (Graph.on_white rule_4_7_row) g
+let rule_4_7 g = Graph.map_like rule_4_7_row g
 
 let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
   (s : int list) : Graph.t * int * int list =
@@ -122,11 +125,6 @@ let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
   rule_3 g k s
 
 (* ===== Paper Implementation ===== *)
-
-let rec_graph g v' : Graph.t =
-  let nv = Graph.get_neighbors g v' in
-  let g' = Graph.set_colors g nv White in
-  Graph.ignore_node g' v'
 
 (* Parallel stuff *)
 
@@ -146,14 +144,14 @@ let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
   else if k = 0 then None
   else
     let rec_f v' =
-      dominating_k_aux (rec_graph g v') stop (Graph.get_neighbors g v') (k - 1)
-        (v' :: s)
+      let nv' = Graph.get_neighbors_and_self g v' in
+      dominating_k_aux (Graph.set_colors g nv' White) stop nv' (k - 1) (v' :: s)
     in
 
     Graph.IntSet.fold
       begin
-        fun e acc ->
-          match (rec_f e, acc) with
+        fun v acc ->
+          match (rec_f v, acc) with
           | None, _ -> acc
           | Some l1, Some l2 when List.compare_lengths l1 l2 >= 0 -> acc
           | res, _ -> res

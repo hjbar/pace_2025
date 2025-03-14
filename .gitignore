@@ -1,3 +1,5 @@
 _build
+saveouts
 *.dot
 *.pdf
+*.out

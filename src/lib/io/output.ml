@@ -30,8 +30,17 @@ let write_output file comment sol =
     | None -> ()
     | Some c -> output_string out_c @@ Format.sprintf "c %s" c
   in
+  output_string out_c "\n";
 
   List.length sol |> string_of_int |> output_string out_c;
-  List.iter (fun n -> n |> string_of_int |> output_string out_c) sol;
+  output_string out_c "\n";
+
+  List.iter
+    begin
+      fun n ->
+        n |> string_of_int |> output_string out_c;
+        output_string out_c "\n"
+    end
+    sol;
 
   close_out out_c

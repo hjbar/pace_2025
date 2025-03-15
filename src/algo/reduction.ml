@@ -132,6 +132,8 @@ let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
 
 exception Stop
 
+let max_deg_glbl = Atomic.make 0
+
 (* Black vertices are non-dominated *)
 (* White vertices are dominated *)
 let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
@@ -144,7 +146,8 @@ let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
   let g, k, s = reduce_cautious g wnew k s in
 
   if Graph.get_blacknode_count g = 0 then Some s
-  else if k = 0 then None
+  else if Graph.get_blacknode_count g > k * (Atomic.get max_deg_glbl + 1) then
+    None
   else
     let rec_f newk v' =
       let nv' = Graph.get_neighbors g v' in
@@ -227,4 +230,5 @@ let dominating (g : Graph.t) : int list =
   Format.printf "min_size = %d@\n%!" min_size;
   Format.printf "max_size = %d@\n%!" max_size;
 
+  Atomic.set max_deg_glbl max_deg;
   dominating_paper g min_size max_size

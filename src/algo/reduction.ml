@@ -1,5 +1,33 @@
 (* NOTE : to obtain the "correct" implementation, all programs here must run in O(n) time. *)
 
+(* Memoisation of reductions *)
+
+(*
+let ( (get_reduc : Graph.repr_t -> (Graph.t * int * int list) option)
+    , (set_reduc : Graph.repr_t -> Graph.t * int * int list -> unit) ) =
+  let mutex = Mutex.create () in
+  let ht = Hashtbl.create 16 in
+
+  let get_reduc repr =
+    Mutex.lock mutex;
+    let opt = Hashtbl.find_opt ht repr in
+    Mutex.unlock mutex;
+    opt
+  in
+
+  let set_reduc repr (graph, k, s) =
+    Mutex.lock mutex;
+    let () =
+      match Hashtbl.find_opt ht repr with
+      | None -> Hashtbl.replace ht repr (Graph.copy graph, k, s)
+      | Some _ -> ()
+    in
+    Mutex.unlock mutex
+  in
+
+  (get_reduc, set_reduc)
+*)
+
 (* Rules 1 and 2 can be applied before all the other rules *)
 (* Rules >1 cannot trigger Rule 1, and Rules >2 cannot trigger Rule 2 *)
 
@@ -108,7 +136,7 @@ let rec rule_3 k s (g, nnwnew) =
         else get_candidates g (i + 1) c s cand
     end
   in
-  
+
   let rec loop (g, k, s) =
     let g, c, s, cand = get_candidates g s in
     let candsize = Graph.IntSet.cardinal cand in
@@ -117,7 +145,7 @@ let rec rule_3 k s (g, nnwnew) =
     else
       loop
         (Graph.set_colors g cand White |> rule_1 cand |> rules_2_4to7, k - c, s)
-  in
+in
 
   loop (g, k, s)
   *)
@@ -126,18 +154,34 @@ let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
   (s : int list) : Graph.t * int * int list =
   g |> rule_1 wnew |> rules_2_4to7 |> rule_3 k s
 
+(*
+let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
+  (s : int list) : Graph.t * int * int list =
+  let repr_g = Graph.get_repr g wnew k s in
+
+  match get_reduc repr_g with
+  | None ->
+    let res = g |> rule_1 wnew |> rules_2_4to7 |> rule_3 k s in
+
+    set_reduc repr_g res;
+    res
+  | Some res -> res
+*)
+
 (* ===== Paper Implementation ===== *)
 
 (* Parallel stuff *)
 
 exception Stop
 
+let stop = Atomic.make false
+
 let max_deg_glbl = Atomic.make 0
 
 (* Black vertices are non-dominated *)
 (* White vertices are dominated *)
-let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
-  (wnew : Graph.IntSet.t) (k : int) (s : int list) : int list option =
+let rec dominating_k_aux (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
+  (s : int list) : int list option =
   let open Graph.GraphNotation in
   (* Parallel stop ? *)
   if Atomic.get stop then raise Stop;
@@ -153,7 +197,7 @@ let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
       let nv' = Graph.get_neighbors g v' in
       dominating_k_aux
         (Graph.set_colors (g /// v') nv' White)
-        stop nv' (newk - 1) (v' :: s)
+        nv' (newk - 1) (v' :: s)
     in
 
     let _, res =
@@ -170,12 +214,11 @@ let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
     in
     res
 
-let dominating_k (g : Graph.t) (k : int) (stop : bool Atomic.t) :
-  int list option =
-  try dominating_k_aux g stop Graph.IntSet.empty k [] with Stop -> None
+let dominating_k (g : Graph.t) (k : int) : int list option =
+  try dominating_k_aux g Graph.IntSet.empty k [] with Stop -> None
 
 let dominating_paper (g : Graph.t) (min : int) (max : int) : int list =
-  let stop = Atomic.make false in
+  Atomic.set stop false;
 
   let nb_domains = Domain.recommended_domain_count () in
   let c = float (max - min) /. float nb_domains |> Float.ceil |> int_of_float in
@@ -191,7 +234,7 @@ let dominating_paper (g : Graph.t) (min : int) (max : int) : int list =
       begin
         fun n ->
           Domain.spawn @@ fun () ->
-          match dominating_k (Graph.copy g) n stop with
+          match dominating_k (Graph.copy g) n with
           | Some _ as res when not @@ Atomic.get stop ->
             Atomic.set stop true;
             res

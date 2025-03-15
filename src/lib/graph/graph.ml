@@ -13,6 +13,11 @@ type t =
   ; nb_b : int
   }
 
+(*
+type repr_t =
+  int list * IntSet.t list * color list * int * IntSet.t * int * int list
+*)
+
 (* Utility Functions *)
 
 let init_empty (n : int) : t =
@@ -27,6 +32,17 @@ let define_t deg adj col nb_b = { deg; adj; col; nb_b }
 let copy g =
   let copy_parray a = Parray.init (Parray.length a) (fun i -> Parray.get a i) in
   define_t (copy_parray g.deg) (copy_parray g.adj) (copy_parray g.col) g.nb_b
+
+(*
+let get_repr g wnew k s : repr_t =
+  ( Parray.to_list g.deg
+  , Parray.to_list g.adj
+  , Parray.to_list g.col
+  , g.nb_b
+  , wnew
+  , k
+  , s )
+*)
 
 (* == Get functions == *)
 

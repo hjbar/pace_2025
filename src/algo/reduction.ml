@@ -4,23 +4,93 @@
 (* Rules >1 cannot trigger Rule 1, and Rules >2 cannot trigger Rule 2 *)
 
 let rule_1 wnew g =
-  Graph.map_like
-    (Graph.on_deg_nz @@ Graph.on_white @@ Graph.remove_neighbors wnew)
-    g
+  let open Graph.GraphNotation in
+  Graph.IntSet.fold
+    begin
+      fun i (g, acc) ->
+        Graph.IntSet.fold
+          (fun j (g, acc) ->
+            if Graph.is_white g j then (g <!= (i, j), Graph.IntSet.add j acc)
+            else (g, acc) )
+          (Graph.get_neighbors g i) (g, acc)
+    end
+    wnew (g, wnew)
 
-(* A simple pass is sufficient since we can assume rule 1 has been applied *)
-(* This rule might also be able to be applied simultaneously with rules 4 to 7 *)
-let rule_2 g =
-  let rule_2_row g i =
-    Graph.remove_edge g (Graph.IntSet.choose @@ Graph.get_neighbors g i) i
+(* Rules 4 to 7 cannot trigger each other or themselves *)
+
+let rules_2_4to7 (g, nwnew) =
+  let open Graph.GraphNotation in
+  Graph.IntSet.fold
+    begin
+      fun i (g, acc) ->
+        match Graph.get_degree g i with
+        | 1 ->
+          (* rule 2 *)
+          let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
+          (Graph.remove_edge g u i, Graph.IntSet.add u acc)
+        | 2 ->
+          (* rule 4, 5, 6 *)
+          let ni = Graph.get_neighbors g i in
+          if
+            Graph.IntSet.exists (fun u3 -> g @? (u3, Graph.IntSet.max_elt ni))
+            @@ Graph.get_neighbors_and_self g
+            @@ Graph.IntSet.min_elt ni
+          then (g // i, Graph.IntSet.union ni acc)
+          else (g, acc)
+        | 3 ->
+          (* rule 7 *)
+          let ni = Graph.get_neighbors g i in
+          let n, _ =
+            Graph.IntSet.fold
+              (fun u (i, u') -> if g @? (u', u) then (i + 1, u) else (i, u))
+              ni
+              (0, Graph.IntSet.max_elt ni)
+          in
+          if n > 1 then (g // i, Graph.IntSet.union ni acc) else (g, acc)
+          (*
+          begin
+            match Graph.get_neighbors_list g i with
+            | [ u1; u2; u3 ] ->
+              if g @? (u1, u2) then
+                if (g @? (u2, u3)) || (g @? (u1, u3)) then g // i else g
+              else if (g @? (u2, u3)) && (g @? (u1, u3)) then g // i
+              else g
+            | _ -> failwith "mismatch rule 7"
+          end
+          *)
+        | _ -> (g, acc)
+    end
+    nwnew (g, Graph.IntSet.empty)
+
+let rec rule_3 k s (g, nnwnew) =
+  let open Graph.GraphNotation in
+  let g, c, s, cand =
+    Graph.IntSet.fold
+      begin
+        fun i (g, c, s, cand) ->
+          if Graph.get_degree g i <> 1 || Graph.IntSet.mem i cand then
+            (g, c, s, cand)
+          else
+            let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
+            ( g /// i
+            , c + 1
+            , u :: s
+            , Graph.IntSet.union cand @@ Graph.get_neighbors_and_self g u )
+      end
+      nnwnew
+      (g, 0, s, Graph.IntSet.empty)
   in
-  Graph.map_like (Graph.on_deg 1 @@ Graph.on_white rule_2_row) g
+  let candsize = Graph.IntSet.cardinal cand in
+  if c >= k then (g, 0, s) (* No solution *)
+  else if candsize = 0 then (g, k, s)
+  else
+    Graph.set_colors g cand White
+    |> rule_1 cand |> rules_2_4to7
+    |> rule_3 (k - c) s
 
-(* Rule 3 is optional *)
-(* Rule 3 can trigger Rules 4, 5', 6', 7 and be triggered by them.*)
-
-let rule_3 g k s =
+(*
   let len_ = Graph.len g in
+
   let rec get_candidates g i c s cand =
     begin
       match i with
@@ -32,97 +102,29 @@ let rule_3 g k s =
           && (not @@ Graph.IntSet.mem i cand)
         then
           let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
-          get_candidates g (i + 1) (c + 1) (u :: s)
+          get_candidates (g /// i) (i + 1) (c + 1) (u :: s)
           @@ Graph.IntSet.union cand
           @@ Graph.get_neighbors_and_self g u
         else get_candidates g (i + 1) c s cand
     end
   in
-
+  
   let rec loop (g, k, s) =
-    let g, c, s, cand = get_candidates g 0 0 s Graph.IntSet.empty in
+    let g, c, s, cand = get_candidates g s in
     let candsize = Graph.IntSet.cardinal cand in
     if c >= k then (g, 0, s) (* No solution *)
     else if candsize = 0 then (g, k, s)
-    else loop (Graph.set_colors g cand White |> rule_1 cand |> rule_2, k - c, s)
+    else
+      loop
+        (Graph.set_colors g cand White |> rule_1 cand |> rules_2_4to7, k - c, s)
   in
 
   loop (g, k, s)
-
-(*
-let rule_3 g k s =
-  let open Graph.GraphNotation in
-  let rule_3_node g k s i =
-    if Graph.get_degree g i = 1 && Graph.get_color g i = Black then
-      let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
-      let g = Graph.set_color (g <!= (i, u)) i Null in
-      let nu = Graph.get_neighbors g u in
-      let g = Graph.set_colors g nu White in
-      let g = Graph.ignore_node g u in
-      (g // u |> rule_1 nu |> rule_2, k - 1, u :: s)
-    else (g, k, s)
-  in
-
-  let len_ = Graph.len g in
-  let rec fold i (g, k, s) =
-    begin
-      match i with
-      | i' when i' = len_ -> (g, k, s)
-      | _ -> if k = 0 then (g, k, s) else fold (i + 1) @@ rule_3_node g k s i
-    end
-  in
-
-  fold 0 (g, k, s)
-*)
-
-(* Rules 4 to 7 cannot trigger each other or themselves *)
-
-let rule_4_7_row g i =
-  let open Graph.GraphNotation in
-  match Graph.get_degree g i with
-  | 2 when Graph.is_white g i ->
-    (* rule 4, 5, 6 *)
-    let ni = Graph.get_neighbors g i in
-    if
-      Graph.IntSet.exists (fun u3 -> g @? (u3, Graph.IntSet.max_elt ni))
-      @@ Graph.get_neighbors_and_self g
-      @@ Graph.IntSet.min_elt ni
-    then g // i
-    else g
-  | 3 when Graph.is_white g i ->
-    (* rule 7 *)
-    let ni = Graph.get_neighbors g i in
-    let n, _ =
-      Graph.IntSet.fold
-        (fun u (i, u') -> if g @? (u', u) then (i + 1, u) else (i, u))
-        ni
-        (0, Graph.IntSet.max_elt ni)
-    in
-    if n > 1 then g // i else g
-    (*
-    begin
-      match Graph.get_neighbors_list g i with
-      | [ u1; u2; u3 ] ->
-        if g @? (u1, u2) then
-          if (g @? (u2, u3)) || (g @? (u1, u3)) then g // i else g
-        else if (g @? (u2, u3)) && (g @? (u1, u3)) then g // i
-        else g
-      | _ -> failwith "mismatch rule 7"
-    end
-    *)
-  | _ -> g
-
-let rule_4_7 g = Graph.map_like rule_4_7_row g
+  *)
 
 let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
   (s : int list) : Graph.t * int * int list =
-  let g = g |> rule_1 wnew |> rule_2 in
-
-  let g, k, s = rule_3 g k s in
-
-  let g = rule_4_7 g in
-
-  rule_3 g k s
+  g |> rule_1 wnew |> rules_2_4to7 |> rule_3 k s
 
 (* ===== Paper Implementation ===== *)
 
@@ -134,6 +136,7 @@ exception Stop
 (* White vertices are dominated *)
 let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
   (wnew : Graph.IntSet.t) (k : int) (s : int list) : int list option =
+  let open Graph.GraphNotation in
   (* Parallel stop ? *)
   if Atomic.get stop then raise Stop;
 
@@ -143,21 +146,26 @@ let rec dominating_k_aux (g : Graph.t) (stop : bool Atomic.t)
   if Graph.get_blacknode_count g = 0 then Some s
   else if k = 0 then None
   else
-    let rec_f v' =
-      let nv' = Graph.get_neighbors_and_self g v' in
-      dominating_k_aux (Graph.set_colors g nv' White) stop nv' (k - 1) (v' :: s)
+    let rec_f newk v' =
+      let nv' = Graph.get_neighbors g v' in
+      dominating_k_aux
+        (Graph.set_colors (g /// v') nv' White)
+        stop nv' (newk - 1) (v' :: s)
     in
 
-    Graph.IntSet.fold
-      begin
-        fun v acc ->
-          match (rec_f v, acc) with
-          | None, _ -> acc
-          | Some l1, Some l2 when List.compare_lengths l1 l2 >= 0 -> acc
-          | res, _ -> res
-      end
-      (Graph.get_neighbors_and_self g @@ Graph.min_deg_blacknode g)
-      None
+    let _, res =
+      Graph.IntSet.fold
+        begin
+          fun v (k, acc) ->
+            match (rec_f k v, acc) with
+            | None, _ -> (k, acc)
+            | Some l1, Some l2 when List.compare_lengths l1 l2 >= 0 -> (k, acc)
+            | (Some res as acc), _ -> (List.length res - List.length s - 1, acc)
+        end
+        (Graph.get_neighbors_and_self g @@ Graph.min_deg_blacknode g)
+        (k, None)
+    in
+    res
 
 let dominating_k (g : Graph.t) (k : int) (stop : bool Atomic.t) :
   int list option =

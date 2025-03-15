@@ -5,12 +5,12 @@ module IntSet = Set.Make (Int)
 type color =
   | Black
   | White
-  | Null
 
 type t =
   { deg : int Parray.t
   ; adj : IntSet.t Parray.t
   ; col : color Parray.t
+  ; nb_b : int
   }
 
 (* Utility Functions *)
@@ -19,13 +19,14 @@ let init_empty (n : int) : t =
   { deg = Parray.init n (Fun.const 0)
   ; adj = Parray.init n (Fun.const IntSet.empty)
   ; col = Parray.init n (Fun.const Black)
+  ; nb_b = n
   }
 
-let define_t deg adj col = { deg; adj; col }
+let define_t deg adj col nb_b = { deg; adj; col; nb_b }
 
 let copy g =
   let copy_parray a = Parray.init (Parray.length a) (fun i -> Parray.get a i) in
-  define_t (copy_parray g.deg) (copy_parray g.adj) (copy_parray g.col)
+  define_t (copy_parray g.deg) (copy_parray g.adj) (copy_parray g.col) g.nb_b
 
 (* == Get functions == *)
 
@@ -42,8 +43,6 @@ let get_color g i = Parray.get g.col i
 let is_white g i = get_color g i = White
 
 let is_black g i = get_color g i = Black
-
-let is_ignored g i = get_color g i = Null
 
 let is_singleton g i = Parray.get g.deg i = 0
 
@@ -65,7 +64,7 @@ let add_edge (g : t) i j : t =
 
     let newdeg = Parray.set (Parray.set g.deg i (degi + 1)) j (degj + 1) in
     let newadj = Parray.set (Parray.set g.adj i newrowi) j newrowj in
-    define_t newdeg newadj g.col
+    define_t newdeg newadj g.col g.nb_b
 
 let remove_edge (g : t) i j : t =
   if not @@ is_edge g i j then g
@@ -77,7 +76,9 @@ let remove_edge (g : t) i j : t =
 
     let newdeg = Parray.set (Parray.set g.deg i (degi - 1)) j (degj - 1) in
     let newadj = Parray.set (Parray.set g.adj i newrowi) j newrowj in
-    define_t newdeg newadj g.col
+    define_t newdeg newadj g.col g.nb_b
+
+(* ----- *)
 
 let add_edges (g : t) (es : (int * int) list) : t =
   List.fold_left (fun g (i, j) -> add_edge g i j) g es
@@ -86,17 +87,14 @@ let remove_edges (g : t) (es : (int * int) list) : t =
   List.fold_left (fun g (i, j) -> remove_edge g i j) g es
 
 let set_color g i c : t =
-  let newcol = Parray.set g.col i c in
-  define_t g.deg g.adj newcol
+  if Parray.get g.col i = c then g
+  else
+    let newcol = Parray.set g.col i c in
+    define_t g.deg g.adj newcol (if c = Black then g.nb_b + 1 else g.nb_b - 1)
 
 let set_colors g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
 
-let get_color_count c g =
-  Parray.fold_left (fun acc c' -> if c' = c then acc + 1 else acc) 0 g.col
-
-let get_blacknode_count = get_color_count Black
-
-let get_whitenode_count = get_color_count White
+let get_blacknode_count g = g.nb_b
 
 (* == Other Utility == *)
 
@@ -132,14 +130,13 @@ let on_deg_nz f g i = if get_degree g i <> 0 then f g i else g
 
 (* == Other Functions specifically useful for the Algorithm == *)
 
-(* -- Used in naive algorithm -- *)
+(* == Naive Algorithm == *)
 let get_neighbors_list g i = IntSet.elements @@ get_neighbors g i
 
-(* Should be used in Rule 1 with vs the list of new white nodes *)
-let remove_neighbors vs g i = IntSet.fold (fun v g -> remove_edge g i v) vs g
+(* == Reduction Algorithm == *)
 
 (* Used multiple times when a node is "removed" *)
-let ignore_node g i =
+let strip_white_node g i =
   let g =
     IntSet.fold
       begin
@@ -147,29 +144,26 @@ let ignore_node g i =
           define_t
             (Parray.set g.deg n (Parray.get g.deg n - 1))
             (Parray.set g.adj n @@ IntSet.remove i @@ Parray.get g.adj n)
-            g.col
+            g.col g.nb_b
       end
       (get_neighbors g i) g
   in
 
   let newdeg = Parray.set g.deg i 0 in
   let newadj = Parray.set g.adj i IntSet.empty in
-  let newcol = Parray.set g.col i Null in
 
-  define_t newdeg newadj newcol
+  define_t newdeg newadj g.col g.nb_b
 
 let min_deg_blacknode g =
-  let r, _ =
-    fold_left_like
-      begin
-        fun (node, deg) g i ->
-          let d = get_degree g i in
-          if is_black g i && deg > d then (i, d) else (node, deg)
-      end
-      (0, len g) (* We assume a simple graph *)
-      g
+  let rec min_aux g i (node, deg) =
+    if i = len g then node
+    else if is_white g i then min_aux g (i + 1) (node, deg)
+    else
+      let d = get_degree g i in
+      if d < 3 then i
+      else min_aux g (i + 1) (if deg > d then (i, d) else (node, deg))
   in
-  r
+  min_aux g 0 (0, len g)
 
 (* == Function for min_deg == *)
 
@@ -328,5 +322,7 @@ module GraphNotation = struct
 
   let ( <<!= ) g s = remove_edges g s
 
-  let ( // ) g i = ignore_node g i
+  let ( // ) g i = strip_white_node g i
+
+  let ( /// ) g i = strip_white_node (set_color g i White) i
 end

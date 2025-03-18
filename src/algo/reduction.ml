@@ -116,57 +116,9 @@ let rec rule_3 k s (g, nnwnew) =
     |> rule_1 cand |> rules_2_4to7
     |> rule_3 (k - c) s
 
-(*
-  let len_ = Graph.len g in
-
-  let rec get_candidates g i c s cand =
-    begin
-      match i with
-      | i' when i' = len_ -> (g, c, s, cand)
-      | _ ->
-        if
-          Graph.get_color g i = Black
-          && Graph.get_degree g i = 1
-          && (not @@ Graph.IntSet.mem i cand)
-        then
-          let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
-          get_candidates (g /// i) (i + 1) (c + 1) (u :: s)
-          @@ Graph.IntSet.union cand
-          @@ Graph.get_neighbors_and_self g u
-        else get_candidates g (i + 1) c s cand
-    end
-  in
-
-  let rec loop (g, k, s) =
-    let g, c, s, cand = get_candidates g s in
-    let candsize = Graph.IntSet.cardinal cand in
-    if c >= k then (g, 0, s) (* No solution *)
-    else if candsize = 0 then (g, k, s)
-    else
-      loop
-        (Graph.set_colors g cand White |> rule_1 cand |> rules_2_4to7, k - c, s)
-in
-
-  loop (g, k, s)
-  *)
-
 let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
   (s : int list) : Graph.t * int * int list =
   g |> rule_1 wnew |> rules_2_4to7 |> rule_3 k s
-
-(*
-let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
-  (s : int list) : Graph.t * int * int list =
-  let repr_g = Graph.get_repr g wnew k s in
-
-  match get_reduc repr_g with
-  | None ->
-    let res = g |> rule_1 wnew |> rules_2_4to7 |> rule_3 k s in
-
-    set_reduc repr_g res;
-    res
-  | Some res -> res
-*)
 
 (* ===== Paper Implementation ===== *)
 
@@ -190,7 +142,8 @@ let rec dominating_k_aux (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
   let g, k, s = reduce_cautious g wnew k s in
 
   if Graph.get_blacknode_count g = 0 then Some s
-  else if Graph.get_blacknode_count g > k * (Atomic.get max_deg_glbl + 1) then
+  else if Graph.get_blacknode_count g > k * (Graph.max_deg g + 1) then
+    (* else if Graph.get_blacknode_count g > k * (Atomic.get max_deg_glbl + 1) then *)
     None
   else
     let rec_f newk v' =

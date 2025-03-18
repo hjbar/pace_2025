@@ -128,29 +128,36 @@ exception Stop
 
 let stop = Atomic.make false
 
+let len_min_sol = Atomic.make max_int
+
 let max_deg_glbl = Atomic.make 0
 
 (* Black vertices are non-dominated *)
 (* White vertices are dominated *)
 let rec dominating_k_aux (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
-  (s : int list) : int list option =
+  (s : int list) (k_min : int) : int list option =
   let open Graph.GraphNotation in
   (* Parallel stop ? *)
-  if Atomic.get stop then raise Stop;
+  if Atomic.get len_min_sol < k_min || Atomic.get stop then raise Stop;
 
   (* Preprocessing *)
   let g, k, s = reduce_cautious g wnew k s in
 
-  if Graph.get_blacknode_count g = 0 then Some s
+  if Graph.get_blacknode_count g = 0 then begin
+    let len_s = List.length s in
+    if len_s < Atomic.get len_min_sol then Atomic.set len_min_sol len_s;
+
+    Some s
+  end
   else if Graph.get_blacknode_count g > k * (Graph.max_deg g + 1) then
     (* else if Graph.get_blacknode_count g > k * (Atomic.get max_deg_glbl + 1) then *)
     None
-  else
+  else begin
     let rec_f newk v' =
       let nv' = Graph.get_neighbors g v' in
       dominating_k_aux
         (Graph.set_colors (g /// v') nv' White)
-        nv' (newk - 1) (v' :: s)
+        nv' (newk - 1) (v' :: s) k_min
     in
 
     let _, res =
@@ -165,32 +172,36 @@ let rec dominating_k_aux (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
         (Graph.get_neighbors_and_self g @@ Graph.min_deg_blacknode g)
         (k, None)
     in
-    res
 
-let dominating_k (g : Graph.t) (k : int) : int list option =
-  try dominating_k_aux g Graph.IntSet.empty k [] with Stop -> None
+    res
+  end
+
+let dominating_k (g : Graph.t) (k_min : int) (k_max : int) : int list option =
+  try dominating_k_aux g Graph.IntSet.empty k_max [] k_min with Stop -> None
 
 let dominating_paper (g : Graph.t) (min : int) (max : int) : int list =
   Atomic.set stop false;
+  Atomic.set len_min_sol max_int;
 
   let nb_domains = Domain.recommended_domain_count () in
   let c = float (max - min) /. float nb_domains |> Float.ceil |> int_of_float in
 
   let args =
-    List.init nb_domains (fun i -> max - (i * c))
-    |> List.filter (fun n -> min <= n)
+    List.init nb_domains (fun i -> (max - ((i + 1) * c), max - (i * c)))
+    |> List.filter (fun (_, n) -> min <= n)
     |> List.sort_uniq compare
   in
 
   let doms =
     List.map
       begin
-        fun n ->
+        fun (k_min, k_max) ->
           Domain.spawn @@ fun () ->
-          match dominating_k (Graph.copy g) n with
+          match dominating_k (Graph.copy g) k_min k_max with
           | Some _ as res when not @@ Atomic.get stop ->
             Atomic.set stop true;
             res
+          | Some _ as res -> res
           | _ -> None
       end
       args

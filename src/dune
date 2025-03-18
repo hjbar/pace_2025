@@ -2,4 +2,4 @@
 
 (executable
  (name main)
- (ocamlopt_flags -O3 -unbox-closures -inline 1000))
+ (ocamlopt_flags -O3 -inline 1000 -nodynlink -unboxed-types -unsafe))

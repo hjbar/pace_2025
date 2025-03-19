@@ -2,6 +2,8 @@
 
 module IntSet = Set.Make (Int)
 
+(* Black vertices are non-dominated *)
+(* White vertices are dominated *)
 type color =
   | Black
   | White

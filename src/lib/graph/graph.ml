@@ -260,14 +260,14 @@ let max_dom_b9 ~len ~min_deg =
 
 let max_dom_b10 ~g =
   let g = copy g in
-  let len = len g in
 
   let get_max_deg g =
     let _, res, _ =
       Parray.fold_left
         begin
           fun (cur_i, max_i, max_deg) deg ->
-            if max_deg < deg then (cur_i + 1, cur_i, deg)
+            if max_deg <= deg && get_color g cur_i = Black then
+              (cur_i + 1, cur_i, deg)
             else (cur_i + 1, max_i, max_deg)
         end
         (0, 0, 0) g.deg
@@ -275,26 +275,21 @@ let max_dom_b10 ~g =
     res
   in
 
-  let rec loop g cpt sol =
-    if cpt >= len then sol
+  let rec loop g sol =
+    if g.nb_b = 0 then sol
     else
-      let i = get_max_deg g in
-
-      let neigh = get_neighbors_and_self g i in
-      let len_neigh = Parray.get g.deg i in
+      let neigh = get_neighbors_and_self g @@ get_max_deg g in
 
       let g =
         IntSet.fold
-          begin
-            fun i g -> strip_white_node (set_color g i White) i
-          end
-          neigh g
+          (fun i g -> strip_white_node g i)
+          neigh (set_colors g neigh White)
       in
 
-      loop g (cpt + len_neigh + 1) (sol + 1)
+      loop g (sol + 1)
   in
 
-  loop g 0 0
+  loop g 0
 
 let max_dom g =
   let len = len g in

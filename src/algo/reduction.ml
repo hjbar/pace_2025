@@ -119,6 +119,8 @@ let stop = Atomic.make false
 
 let len_min_sol = Atomic.make max_int
 
+let max_completed_k = Atomic.make min_int
+
 (* Auxiliary function of dominating_k *)
 
 let rec dominating_k_aux g s_len s k_min k_max =
@@ -163,7 +165,20 @@ let dominating_k g k_min k_max =
     rule_3 0 [] k_max (g, Graph.IntSet.of_list @@ List.init (Graph.len g) Fun.id)
   in
 
-  try dominating_k_aux g s_len s k_min k_max with Stop -> None
+  try
+    begin
+      let rec loop () =
+        match dominating_k_aux g s_len s k_min k_max with
+        | None ->
+          if Atomic.get max_completed_k < !k_max then
+            Atomic.set max_completed_k !k_max;
+          k_max := Atomic.get max_completed_k + 1;
+          loop ()
+        | res -> res
+      in
+      loop ()
+    end
+  with Stop -> None
 
 (* Auxiliary function of dominating *)
 
@@ -171,6 +186,7 @@ let dominating_aux g dom_min dom_max =
   (* We reset the global variables *)
   Atomic.set stop false;
   Atomic.set len_min_sol max_int;
+  Atomic.set max_completed_k dom_min;
 
   (* We define the domains for parallelism *)
   let nb_domains = Domain.recommended_domain_count () in

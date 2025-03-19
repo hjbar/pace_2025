@@ -4,6 +4,7 @@ module IntSet = Set.Make (Int)
 
 (* Black vertices are non-dominated *)
 (* White vertices are dominated *)
+
 type color =
   | Black
   | White
@@ -15,11 +16,6 @@ type t =
   ; nb_b : int
   ; degcount : int Parray.t
   }
-
-(*
-type repr_t =
-  int list * IntSet.t list * color list * int * IntSet.t * int * int list
-*)
 
 (* Utility Functions *)
 
@@ -34,34 +30,13 @@ let init_empty (n : int) : t =
 let define_t deg adj col nb_b degcount = { deg; adj; col; nb_b; degcount }
 
 let copy g =
-  let copy_parray a = Parray.init (Parray.length a) (fun i -> Parray.get a i) in
+  let copy_parray a = Parray.init (Parray.length a) (Parray.get a) in
   define_t (copy_parray g.deg) (copy_parray g.adj) (copy_parray g.col) g.nb_b
     (copy_parray g.degcount)
 
-(*
-let get_repr g wnew k s : repr_t =
-  ( Parray.to_list g.deg
-  , Parray.to_list g.adj
-  , Parray.to_list g.col
-  , g.nb_b
-  , wnew
-  , k
-  , s )
-*)
-
-let s_degcount g s =
-  let s =
-    s ^ ": ["
-    ^ Parray.fold_left (fun acc i -> acc ^ string_of_int i ^ "; ") "" g.degcount
-    ^ "] sums to "
-    ^ string_of_int (Parray.fold_left (fun acc i -> acc + i) 0 g.degcount)
-    ^ "\n"
-  in
-  s
-
 let update_degcount maxdeg g =
   define_t g.deg g.adj g.col g.nb_b
-  @@ Parray.init (maxdeg + 1) (fun i -> Parray.get g.degcount i)
+  @@ Parray.init (maxdeg + 1) (Parray.get g.degcount)
 
 (* == Get functions == *)
 
@@ -79,6 +54,8 @@ let is_white g i = get_color g i = White
 
 let is_black g i = get_color g i = Black
 
+let get_blacknode_count g = g.nb_b
+
 let is_singleton g i = Parray.get g.deg i = 0
 
 let is_edge g i j =
@@ -89,7 +66,7 @@ let is_edge g i j =
 
 (* == Modifications == *)
 
-let add_edge (g : t) i j : t =
+let add_edge g i j =
   if is_edge g i j then g
   else
     let degi = Parray.get g.deg i in
@@ -113,7 +90,7 @@ let add_edge (g : t) i j : t =
     in
     define_t newdeg newadj g.col g.nb_b newdegcount
 
-let remove_edge (g : t) i j : t =
+let remove_edge g i j =
   if not @@ is_edge g i j then g
   else
     let degi = Parray.get g.deg i in
@@ -137,15 +114,11 @@ let remove_edge (g : t) i j : t =
     in
     define_t newdeg newadj g.col g.nb_b newdegcount
 
-(* ----- *)
+let add_edges g es = List.fold_left (fun g (i, j) -> add_edge g i j) g es
 
-let add_edges (g : t) (es : (int * int) list) : t =
-  List.fold_left (fun g (i, j) -> add_edge g i j) g es
+let remove_edges g es = List.fold_left (fun g (i, j) -> remove_edge g i j) g es
 
-let remove_edges (g : t) (es : (int * int) list) : t =
-  List.fold_left (fun g (i, j) -> remove_edge g i j) g es
-
-let set_color g i c : t =
+let set_color g i c =
   if Parray.get g.col i = c then g
   else
     let newcol = Parray.set g.col i c in
@@ -154,47 +127,6 @@ let set_color g i c : t =
       g.degcount
 
 let set_colors g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
-
-let get_blacknode_count g = g.nb_b
-
-(* == Other Utility == *)
-
-(*
-(* Not quite a map, since a graph is not iterable *)
-(* (t -> int -> t) -> t -> t *)
-let map_like f g =
-  let len_ = len g in
-  let rec iter i g =
-    begin
-      match i with i' when i' = len_ -> g | _ -> iter (i + 1) @@ f g i
-    end
-  in
-  iter 0 g
-
-(* (acc -> t -> int -> acc) -> acc -> t -> acc *)
-let fold_left_like f init g =
-  let len_ = len g in
-  let rec fold i g acc =
-    begin
-      match i with i' when i' = len_ -> acc | _ -> fold (i + 1) g @@ f acc g i
-    end
-  in
-  fold 0 g init
-
-(* (t -> int -> t) -> (t -> int -> t) *)
-let on_white f g i = if get_color g i = White then f g i else g
-
-let on_black f g i = if get_color g i = Black then f g i else g
-
-let on_deg d f g i = if get_degree g i = d then f g i else g
-
-let on_deg_nz f g i = if get_degree g i <> 0 then f g i else g
-*)
-
-(* == Other Functions specifically useful for the Algorithm == *)
-
-(* == Naive Algorithm == *)
-let get_neighbors_list g i = IntSet.elements @@ get_neighbors g i
 
 (* == Reduction Algorithm == *)
 
@@ -240,14 +172,16 @@ let min_deg_blacknode g =
       if d < 3 then i
       else min_aux g (i + 1) (if deg > d then (i, d) else (node, deg))
   in
+
   min_aux g 0 (0, len g)
 
-let max_possible_domination g k : int =
+let max_possible_domination g k =
   let rec aux i k acc =
     let dc = Parray.get g.degcount i in
     if dc >= k then acc + (k * (i + 1))
     else aux (i - 1) (k - dc) (acc + (dc * (i + 1)))
   in
+
   aux (Parray.length g.degcount - 1) k 0
 
 (* == Function for min_deg == *)
@@ -260,74 +194,25 @@ let min_deg g =
 let max_deg g =
   Parray.fold_left (fun acc i -> if acc < i then i else acc) 0 g.deg
 
-(* == Function for excentricity (radius & diameter) == *)
-
-let floyd_warshall g =
-  let len = len g in
-
-  let dist = Array.make_matrix len len max_int in
-  for i = 0 to len - 1 do
-    dist.(i).(i) <- 0
-  done;
-
-  for i = 0 to len - 1 do
-    IntSet.iter
-      begin
-        fun j ->
-          dist.(i).(j) <- 1;
-          dist.(j).(i) <- 1
-      end
-      (get_neighbors g i)
-  done;
-
-  for k = 0 to len - 1 do
-    for i = 0 to len - 1 do
-      for j = 0 to len - 1 do
-        let ik = dist.(i).(k) in
-        let kj = dist.(k).(j) in
-        let ij = dist.(i).(j) in
-
-        if ik <> max_int && kj <> max_int then dist.(i).(j) <- min ij (ik + kj)
-      done
-    done
-  done;
-
-  dist
-
-let excentricity g =
-  let len = len g in
-  let dist = floyd_warshall g in
-
-  let exc = Array.init len (fun i -> Array.fold_left max min_int dist.(i)) in
-
-  let r = Array.fold_left min max_int exc in
-  let d = Array.fold_left max min_int exc in
-
-  (r, d)
-
 (* == Functions for min_dom == *)
 
 let min_dom_b1 ~len ~max_deg =
   float len /. float (max_deg + 1) |> Float.floor |> int_of_float
 
-let min_dom_b2 ~len ~diameter =
-  if len <= 1 then min_int
-  else float (diameter + 1) /. 3. |> Float.floor |> int_of_float
-
-let min_dom_b3 ~len ~radius =
-  if len <= 1 then min_int
-  else float (2 * radius) /. 3. |> Float.floor |> int_of_float
+let min_dom_b2 ~g ~len =
+  let rec aux i =
+    if max_possible_domination g i >= len then i else aux (i + 1)
+  in
+  aux 1
 
 let min_dom g =
   let len = len g in
   let max_deg = max_deg g in
-  let radius, diameter = excentricity g in
 
   let b1 = min_dom_b1 ~len ~max_deg in
-  let b2 = min_dom_b2 ~len ~diameter in
-  let b3 = min_dom_b3 ~len ~radius in
+  let b2 = min_dom_b2 ~g ~len in
 
-  List.fold_left max min_int [ b1; b2; b3 ]
+  List.fold_left max min_int [ b1; b2 ]
 
 (* == Functions for max_dom == *)
 
@@ -373,7 +258,7 @@ let max_dom_b9 ~len ~min_deg =
     c1 *. c2 |> Float.ceil |> int_of_float
   end
 
-let max_dom g : int =
+let max_dom g =
   let len = len g in
   let min_deg = min_deg g in
   let max_deg = max_deg g in
@@ -394,6 +279,16 @@ let max_dom g : int =
 
 let total_edges g = Parray.fold_left (fun i acc -> acc + i) 0 g.deg
 
+let s_degcount g s =
+  let s =
+    s ^ ": ["
+    ^ Parray.fold_left (fun acc i -> acc ^ string_of_int i ^ "; ") "" g.degcount
+    ^ "] sums to "
+    ^ string_of_int (Parray.fold_left (fun acc i -> acc + i) 0 g.degcount)
+    ^ "\n"
+  in
+  s
+
 (* Notation for ease of use *)
 
 module GraphNotation = struct
@@ -411,3 +306,7 @@ module GraphNotation = struct
 
   let ( /// ) g i = strip_white_node (set_color g i White) i
 end
+
+(* == Only in Naive Algorithm == *)
+
+let get_neighbors_list g i = IntSet.elements @@ get_neighbors g i

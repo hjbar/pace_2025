@@ -43,4 +43,8 @@ let open_out_trunc file =
   open_out_gen [ Open_wronly; Open_creat; Open_trunc ] 0o666 file
 
 let compile_graph file_dot file_pdf =
-  Sys.command @@ Format.sprintf "dot -Tpdf %s -o %s" file_dot file_pdf |> ignore
+  Sys.command
+  @@ Format.sprintf
+       "sfdp -Tpdf -Goverlap=scale -Gnodesep=1.0 -Granksep=2 %s -o %s" file_dot
+       file_pdf
+  |> ignore

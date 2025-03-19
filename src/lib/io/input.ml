@@ -26,4 +26,4 @@ let parse_input file : Graph.t =
     failwith "Error in parse_input : nb_edges <> |assoc|";
 
   let graph = Graph.init_empty nb_vertex in
-  graph <<= assoc
+  graph <<== assoc

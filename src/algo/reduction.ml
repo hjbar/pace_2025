@@ -14,7 +14,8 @@ let rules_except_3 wnew g =
           Graph.IntSet.fold
             begin
               fun j (g, acc) ->
-                if Graph.is_white g j then (g <!= (i, j), Graph.IntSet.add j acc)
+                if Graph.is_white g j then
+                  (g <!== (i, j), Graph.IntSet.add j acc)
                 else (g, acc)
             end
             (Graph.get_neighbors g i) (g, acc)
@@ -166,19 +167,35 @@ let dominating_k g k_min k_max =
 
 (* Auxiliary function of dominating *)
 
-let dominating_aux g min max =
+let dominating_aux g dom_min dom_max =
   (* We reset the global variables *)
   Atomic.set stop false;
   Atomic.set len_min_sol max_int;
 
   (* We define the domains for parallelism *)
   let nb_domains = Domain.recommended_domain_count () in
-  let c = float (max - min) /. float nb_domains |> Float.ceil |> int_of_float in
+  let c =
+    float (dom_max - dom_min) /. float nb_domains |> Float.ceil |> int_of_float
+  in
 
   let args =
-    List.init nb_domains (fun i -> (max - ((i + 1) * c), max - (i * c)))
-    |> List.filter (fun (_, n) -> min < n + 1)
+    List.init nb_domains (fun i -> (dom_max - ((i + 1) * c), dom_max - (i * c)))
+    |> List.filter (fun (k_min, k_max) -> dom_min <= k_min && dom_min <= k_max)
     |> List.sort_uniq compare
+  in
+
+  let args =
+    let rec loop cpt l =
+      if cpt = nb_domains then l
+      else
+        match l with
+        | [] -> []
+        | (k_min, k_max) :: l ->
+          let k_mid = (k_min + k_max) / 2 in
+          (k_min, k_mid) :: (k_mid, k_max) :: loop (cpt + 1) l
+    in
+
+    args |> List.rev |> loop (List.length args) |> List.sort_uniq compare
   in
 
   let doms =
@@ -222,6 +239,8 @@ let dominating g =
   let max_deg = Graph.max_deg g in
   let min_size = Graph.min_dom g in
   let max_size = Graph.max_dom g in
+
+  Format.printf "min_size = %d, max_size = %d\n%!" min_size max_size;
 
   (* We start dominating_aux *)
   dominating_aux (Graph.update_degcount max_deg g) min_size max_size

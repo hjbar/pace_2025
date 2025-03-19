@@ -294,13 +294,13 @@ let s_degcount g s =
 module GraphNotation = struct
   let ( @? ) g (i, j) = is_edge g i j
 
-  let ( <= ) g (i, j) = add_edge g i j
+  let ( <== ) g (i, j) = add_edge g i j
 
-  let ( <<= ) g s = add_edges g s
+  let ( <<== ) g s = add_edges g s
 
-  let ( <!= ) g (i, j) = remove_edge g i j
+  let ( <!== ) g (i, j) = remove_edge g i j
 
-  let ( <<!= ) g s = remove_edges g s
+  let ( <<!== ) g s = remove_edges g s
 
   let ( // ) g i = strip_white_node g i
 

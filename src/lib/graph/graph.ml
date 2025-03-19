@@ -19,7 +19,7 @@ type t =
 
 (* Utility Functions *)
 
-let init_empty (n : int) : t =
+let init_empty n =
   { deg = Parray.init n (Fun.const 0)
   ; adj = Parray.init n (Fun.const IntSet.empty)
   ; col = Parray.init n (Fun.const Black)
@@ -258,6 +258,44 @@ let max_dom_b9 ~len ~min_deg =
     c1 *. c2 |> Float.ceil |> int_of_float
   end
 
+let max_dom_b10 ~g =
+  let g = copy g in
+  let len = len g in
+
+  let get_max_deg g =
+    let _, res, _ =
+      Parray.fold_left
+        begin
+          fun (cur_i, max_i, max_deg) deg ->
+            if max_deg < deg then (cur_i + 1, cur_i, deg)
+            else (cur_i + 1, max_i, max_deg)
+        end
+        (0, 0, 0) g.deg
+    in
+    res
+  in
+
+  let rec loop g cpt sol =
+    if cpt >= len then sol
+    else
+      let i = get_max_deg g in
+
+      let neigh = get_neighbors_and_self g i in
+      let len_neigh = Parray.get g.deg i in
+
+      let g =
+        IntSet.fold
+          begin
+            fun i g -> strip_white_node (set_color g i White) i
+          end
+          neigh g
+      in
+
+      loop g (cpt + len_neigh + 1) (sol + 1)
+  in
+
+  loop g 0 0
+
 let max_dom g =
   let len = len g in
   let min_deg = min_deg g in
@@ -272,8 +310,9 @@ let max_dom g =
   let b7 = max_dom_b7 ~len ~min_deg in
   let b8 = max_dom_b8 ~len ~min_deg in
   let b9 = max_dom_b9 ~len ~min_deg in
+  let b10 = max_dom_b10 ~g in
 
-  List.fold_left min max_int [ b1; b2; b3; b4; b5; b6; b7; b8; b9 ]
+  List.fold_left min max_int [ b1; b2; b3; b4; b5; b6; b7; b8; b9; b10 ]
 
 (* == Functions for debugging == *)
 

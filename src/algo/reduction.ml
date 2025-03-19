@@ -240,7 +240,5 @@ let dominating g =
   let min_size = Graph.min_dom g in
   let max_size = Graph.max_dom g in
 
-  Format.printf "min_size = %d, max_size = %d\n%!" min_size max_size;
-
   (* We start dominating_aux *)
   dominating_aux (Graph.update_degcount max_deg g) min_size max_size

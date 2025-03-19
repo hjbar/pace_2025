@@ -13,6 +13,7 @@ type t =
   ; adj : IntSet.t Parray.t
   ; col : color Parray.t
   ; nb_b : int
+  ; degcount : int Parray.t
   }
 
 (*
@@ -27,13 +28,15 @@ let init_empty (n : int) : t =
   ; adj = Parray.init n (Fun.const IntSet.empty)
   ; col = Parray.init n (Fun.const Black)
   ; nb_b = n
+  ; degcount = Parray.init n (fun i -> if i = 0 then n else 0)
   }
 
-let define_t deg adj col nb_b = { deg; adj; col; nb_b }
+let define_t deg adj col nb_b degcount = { deg; adj; col; nb_b; degcount }
 
 let copy g =
   let copy_parray a = Parray.init (Parray.length a) (fun i -> Parray.get a i) in
   define_t (copy_parray g.deg) (copy_parray g.adj) (copy_parray g.col) g.nb_b
+    (copy_parray g.degcount)
 
 (*
 let get_repr g wnew k s : repr_t =
@@ -45,6 +48,20 @@ let get_repr g wnew k s : repr_t =
   , k
   , s )
 *)
+
+let s_degcount g s =
+  let s =
+    s ^ ": ["
+    ^ Parray.fold_left (fun acc i -> acc ^ string_of_int i ^ "; ") "" g.degcount
+    ^ "] sums to "
+    ^ string_of_int (Parray.fold_left (fun acc i -> acc + i) 0 g.degcount)
+    ^ "\n"
+  in
+  s
+
+let update_degcount maxdeg g =
+  define_t g.deg g.adj g.col g.nb_b
+  @@ Parray.init (maxdeg + 1) (fun i -> Parray.get g.degcount i)
 
 (* == Get functions == *)
 
@@ -82,7 +99,19 @@ let add_edge (g : t) i j : t =
 
     let newdeg = Parray.set (Parray.set g.deg i (degi + 1)) j (degj + 1) in
     let newadj = Parray.set (Parray.set g.adj i newrowi) j newrowj in
-    define_t newdeg newadj g.col g.nb_b
+    let newdegcount' =
+      Parray.set
+        (Parray.set g.degcount degi (Parray.get g.degcount degi - 1))
+        (degi + 1)
+        (Parray.get g.degcount (degi + 1) + 1)
+    in
+    let newdegcount =
+      Parray.set
+        (Parray.set newdegcount' degj (Parray.get newdegcount' degj - 1))
+        (degj + 1)
+        (Parray.get newdegcount' (degj + 1) + 1)
+    in
+    define_t newdeg newadj g.col g.nb_b newdegcount
 
 let remove_edge (g : t) i j : t =
   if not @@ is_edge g i j then g
@@ -94,7 +123,19 @@ let remove_edge (g : t) i j : t =
 
     let newdeg = Parray.set (Parray.set g.deg i (degi - 1)) j (degj - 1) in
     let newadj = Parray.set (Parray.set g.adj i newrowi) j newrowj in
-    define_t newdeg newadj g.col g.nb_b
+    let newdegcount' =
+      Parray.set
+        (Parray.set g.degcount degi (Parray.get g.degcount degi - 1))
+        (degi - 1)
+        (Parray.get g.degcount (degi - 1) + 1)
+    in
+    let newdegcount =
+      Parray.set
+        (Parray.set newdegcount' degj (Parray.get newdegcount' degj - 1))
+        (degj - 1)
+        (Parray.get newdegcount' (degj - 1) + 1)
+    in
+    define_t newdeg newadj g.col g.nb_b newdegcount
 
 (* ----- *)
 
@@ -108,7 +149,9 @@ let set_color g i c : t =
   if Parray.get g.col i = c then g
   else
     let newcol = Parray.set g.col i c in
-    define_t g.deg g.adj newcol (if c = Black then g.nb_b + 1 else g.nb_b - 1)
+    define_t g.deg g.adj newcol
+      (if c = Black then g.nb_b + 1 else g.nb_b - 1)
+      g.degcount
 
 let set_colors g vs c = IntSet.fold (fun i g -> set_color g i c) vs g
 
@@ -116,6 +159,7 @@ let get_blacknode_count g = g.nb_b
 
 (* == Other Utility == *)
 
+(*
 (* Not quite a map, since a graph is not iterable *)
 (* (t -> int -> t) -> t -> t *)
 let map_like f g =
@@ -145,6 +189,7 @@ let on_black f g i = if get_color g i = Black then f g i else g
 let on_deg d f g i = if get_degree g i = d then f g i else g
 
 let on_deg_nz f g i = if get_degree g i <> 0 then f g i else g
+*)
 
 (* == Other Functions specifically useful for the Algorithm == *)
 
@@ -159,18 +204,32 @@ let strip_white_node g i =
     IntSet.fold
       begin
         fun n g ->
+          let degn = Parray.get g.deg n in
           define_t
-            (Parray.set g.deg n (Parray.get g.deg n - 1))
+            (Parray.set g.deg n (degn - 1))
             (Parray.set g.adj n @@ IntSet.remove i @@ Parray.get g.adj n)
             g.col g.nb_b
+            (Parray.set
+               (Parray.set g.degcount degn (Parray.get g.degcount degn - 1))
+               (degn - 1)
+               (Parray.get g.degcount (degn - 1) + 1) )
       end
       (get_neighbors g i) g
   in
 
   let newdeg = Parray.set g.deg i 0 in
   let newadj = Parray.set g.adj i IntSet.empty in
+  let degi = Parray.get g.deg i in
+  let newdegcount =
+    if degi = 0 then g.degcount
+    else
+      Parray.set
+        (Parray.set g.degcount degi (Parray.get g.degcount degi - 1))
+        0
+        (Parray.get g.degcount 0 + 1)
+  in
 
-  define_t newdeg newadj g.col g.nb_b
+  define_t newdeg newadj g.col g.nb_b newdegcount
 
 let min_deg_blacknode g =
   let rec min_aux g i (node, deg) =
@@ -182,6 +241,14 @@ let min_deg_blacknode g =
       else min_aux g (i + 1) (if deg > d then (i, d) else (node, deg))
   in
   min_aux g 0 (0, len g)
+
+let max_possible_domination g k : int =
+  let rec aux i k acc =
+    let dc = Parray.get g.degcount i in
+    if dc >= k then acc + (k * (i + 1))
+    else aux (i - 1) (k - dc) (acc + (dc * (i + 1)))
+  in
+  aux (Parray.length g.degcount - 1) k 0
 
 (* == Function for min_deg == *)
 

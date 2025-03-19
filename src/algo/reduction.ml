@@ -28,23 +28,21 @@ let ( (get_reduc : Graph.repr_t -> (Graph.t * int * int list) option)
   (get_reduc, set_reduc)
 *)
 
-let rule_1 wnew g =
+let rules_except_3 wnew g =
   let open Graph.GraphNotation in
-  Graph.IntSet.fold
-    begin
-      fun i (g, acc) ->
-        Graph.IntSet.fold
-          (fun j (g, acc) ->
-            if Graph.is_white g j then (g <!= (i, j), Graph.IntSet.add j acc)
-            else (g, acc) )
-          (Graph.get_neighbors g i) (g, acc)
-    end
-    wnew (g, wnew)
+  let g, nwnew =
+    Graph.IntSet.fold
+      begin
+        fun i (g, acc) ->
+          Graph.IntSet.fold
+            (fun j (g, acc) ->
+              if Graph.is_white g j then (g <!= (i, j), Graph.IntSet.add j acc)
+              else (g, acc) )
+            (Graph.get_neighbors g i) (g, acc)
+      end
+      wnew (g, wnew)
+  in
 
-(* Rules 4 to 7 cannot trigger each other or themselves *)
-
-let rules_2_4to7 (g, nwnew) =
-  let open Graph.GraphNotation in
   Graph.IntSet.fold
     begin
       fun i (g, acc) ->
@@ -77,35 +75,56 @@ let rules_2_4to7 (g, nwnew) =
     end
     nwnew (g, Graph.IntSet.empty)
 
-let rec rule_3 k s (g, nnwnew) =
+let rec rule_3 s_len s k_max (g, nnwnew) : Graph.t * int * int list =
   let open Graph.GraphNotation in
   let g, c, s, cand =
     Graph.IntSet.fold
       begin
         fun i (g, c, s, cand) ->
-          if Graph.get_degree g i <> 1 || Graph.IntSet.mem i cand then
-            (g, c, s, cand)
-          else
-            let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
-            ( g /// i
-            , c + 1
-            , u :: s
-            , Graph.IntSet.union cand @@ Graph.get_neighbors_and_self g u )
+          begin
+            match Graph.get_degree g i with
+            | 1 when not @@ Graph.IntSet.mem i cand ->
+              let u = Graph.IntSet.choose @@ Graph.get_neighbors g i in
+              (*Format.printf "hello %d, %d in solution\n" (i + 1) (u + 1);*)
+              ( g /// i
+              , c + 1
+              , u :: s
+              , Graph.IntSet.union cand @@ Graph.get_neighbors_and_self g u )
+            | 2 when not @@ Graph.IntSet.mem i cand ->
+              let ni = Graph.get_neighbors g i in
+              let u1 = Graph.IntSet.min_elt ni in
+              let u2 = Graph.IntSet.max_elt ni in
+              if g @? (u1, u2) then
+                if Graph.get_degree g u1 = 2 then
+                  ( (*Format.printf "hello %d, %d, %d in solution\n" (i + 1)
+                  (u1 + 1) (u2 + 1);*)
+                    g /// i /// u1
+                  , c + 1
+                  , u2 :: s
+                  , Graph.IntSet.union cand @@ Graph.get_neighbors_and_self g u2
+                  )
+                else if Graph.get_degree g u2 = 2 then
+                  ( (*Format.printf "hello %d, %d, %d in solution\n" (i + 1)
+                  (u2 + 1) (u1 + 1);*)
+                    g /// i /// u2
+                  , c + 1
+                  , u1 :: s
+                  , Graph.IntSet.union cand @@ Graph.get_neighbors_and_self g u1
+                  )
+                else (g, c, s, cand)
+              else (g, c, s, cand)
+            | _ -> (g, c, s, cand)
+          end
       end
       nnwnew
-      (g, 0, s, Graph.IntSet.empty)
+      (g, s_len, s, Graph.IntSet.empty)
   in
-  let candsize = Graph.IntSet.cardinal cand in
-  if c >= k then (g, 0, s) (* No solution *)
-  else if candsize = 0 then (g, k, s)
-  else
-    Graph.set_colors g cand White
-    |> rule_1 cand |> rules_2_4to7
-    |> rule_3 (k - c) s
+  if c = s_len then (g, s_len, s)
+  else if c > Atomic.get k_max then (g, c, s)
+  else Graph.set_colors g cand White |> rules_except_3 cand |> rule_3 c s k_max
 
-let reduce_cautious (g : Graph.t) (wnew : Graph.IntSet.t) (k : int)
-  (s : int list) : Graph.t * int * int list =
-  g |> rule_1 wnew |> rules_2_4to7 |> rule_3 k s
+and reduce_cautious g wnew s_len s k_max =
+  Graph.set_colors g wnew White |> rules_except_3 wnew |> rule_3 s_len s k_max
 
 (* ===== Paper Implementation ===== *)
 
@@ -117,59 +136,56 @@ let stop = Atomic.make false
 
 let len_min_sol = Atomic.make max_int
 
-let max_deg_glbl = Atomic.make 0
-
-let rec dominating_k_aux (g : Graph.t) (k : int) (s : int list) (k_min : int) :
-  int list option =
+let rec dominating_k_aux (g : Graph.t) (s_len : int) (s : int list)
+  (k_min : int) (k_max : int Atomic.t) : int list option =
   let open Graph.GraphNotation in
   (* Parallel stop ? *)
   if Atomic.get len_min_sol < k_min || Atomic.get stop then raise Stop;
 
-  if Graph.get_blacknode_count g = 0 then begin
-    let len_s = List.length s in
-    if len_s < Atomic.get len_min_sol then Atomic.set len_min_sol len_s;
-
+  if s_len > Atomic.get k_max then None
+  else if Graph.get_blacknode_count g = 0 then begin
+    if s_len < Atomic.get len_min_sol then Atomic.set len_min_sol s_len;
+    Atomic.set k_max (s_len - 1);
     Some s
   end
-  else if Graph.get_blacknode_count g > k * (Graph.max_deg g + 1) then
-    (* else if Graph.get_blacknode_count g > k * (Atomic.get max_deg_glbl + 1) then *)
-    None
+  else if
+    Graph.get_blacknode_count g
+    > Graph.max_possible_domination g (Atomic.get k_max - s_len)
+  then None
   else begin
-    let rec_f newk v' =
-      let nv' = Graph.get_neighbors g v' in
+    let rec_f v' =
       (* Preprocessing *)
-      let g', k', s' =
-        reduce_cautious
-          (Graph.set_colors (g /// v') nv' White)
-          nv' (newk - 1) (v' :: s)
+      let g', s_len', s' =
+        reduce_cautious (g /// v') (Graph.get_neighbors g v') (s_len + 1)
+          (v' :: s) k_max
       in
-      dominating_k_aux g' k' s' k_min
+      dominating_k_aux g' s_len' s' k_min k_max
     in
 
-    let _, res =
-      Graph.IntSet.fold
-        begin
-          fun v (k, acc) ->
-            match (rec_f k v, acc) with
-            | None, _ -> (k, acc)
-            | Some l1, Some l2 when List.compare_lengths l1 l2 >= 0 -> (k, acc)
-            | (Some res as acc), _ -> (List.length res - List.length s - 1, acc)
-        end
-        (Graph.get_neighbors_and_self g @@ Graph.min_deg_blacknode g)
-        (k, None)
-    in
-
-    res
+    Graph.IntSet.fold
+      begin
+        fun v acc ->
+          match (rec_f v, acc) with
+          | None, _ -> acc
+          | (Some _ as newacc), _ -> newacc
+      end
+      (Graph.get_neighbors_and_self g @@ Graph.min_deg_blacknode g)
+      None
   end
 
 let dominating_k (g : Graph.t) (k_min : int) (k_max : int) : int list option =
-  try dominating_k_aux g k_max [] k_min with Stop -> None
+  let k_max = Atomic.make k_max in
+  let g, s_len, s =
+    rule_3 0 [] k_max (g, Graph.IntSet.of_list @@ List.init (Graph.len g) Fun.id)
+  in
+  try dominating_k_aux g s_len s k_min k_max with Stop -> None
 
 let dominating_paper (g : Graph.t) (min : int) (max : int) : int list =
   Atomic.set stop false;
   Atomic.set len_min_sol max_int;
 
-  let nb_domains = Domain.recommended_domain_count () in
+  (*let nb_domains = Domain.recommended_domain_count () in*)
+  let nb_domains = 1 in
   let c = float (max - min) /. float nb_domains |> Float.ceil |> int_of_float in
 
   let args =
@@ -223,8 +239,7 @@ let dominating (g : Graph.t) : int list =
   Format.printf "min_size = %d@\n%!" min_size;
   Format.printf "max_size = %d@\n%!" max_size;
 
-  Atomic.set max_deg_glbl max_deg;
-  dominating_paper g min_size max_size
+  dominating_paper (Graph.update_degcount max_deg g) min_size max_size
 
 (* == Appendix: Former Implementations == *)
 

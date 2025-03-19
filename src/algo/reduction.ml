@@ -124,7 +124,11 @@ let max_completed_k = Atomic.make min_int
 (* Auxiliary function of dominating_k *)
 
 let rec dominating_k_aux g s_len s k_min k_max =
-  if Atomic.get len_min_sol < k_min || Atomic.get stop then raise Stop;
+  if
+    Atomic.get len_min_sol < k_min
+    || Atomic.get stop
+    || !k_max < Atomic.get max_completed_k
+  then raise Stop;
 
   if
     s_len > !k_max
@@ -168,7 +172,11 @@ let dominating_k g k_min k_max =
   try
     begin
       let rec loop () =
-        match dominating_k_aux g s_len s k_min k_max with
+        match
+          dominating_k_aux g s_len s
+            (max k_min (Atomic.get max_completed_k))
+            k_max
+        with
         | None ->
           if Atomic.get max_completed_k < !k_max then
             Atomic.set max_completed_k !k_max;

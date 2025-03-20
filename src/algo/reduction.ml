@@ -35,6 +35,7 @@ let rules_except_3 wnew g =
 
           if
             Graph.IntSet.exists (fun u3 -> g @? (u3, Graph.IntSet.max_elt ni))
+            @@ Graph.IntSet.remove i
             @@ Graph.get_neighbors_and_self g
             @@ Graph.IntSet.min_elt ni
           then (g // i, Graph.IntSet.union ni acc)

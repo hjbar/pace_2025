@@ -136,8 +136,8 @@ let rec dominating_k_aux g s_len s k_min k_max =
        > Graph.max_possible_domination g (!k_max - s_len)
     || !k_max <= Atomic.get max_completed_k
   then None
-  else if Graph.get_blacknode_count g = 0 then begin
-    if s_len < Atomic.get len_min_sol then Atomic.set len_min_sol s_len;
+  else if Graph.get_blacknode_count g = 0 && s_len < Atomic.get len_min_sol then begin
+    Atomic.set len_min_sol s_len;
     k_max := s_len - 1;
 
     Some s
@@ -193,16 +193,16 @@ let dominating_k g k_min k_max =
 
   try
     begin
-      let rec loop () =
-        let k_min = max k_min (Atomic.get max_completed_k) in
-
+      let rec loop k_min =
         match dominating_k_aux g s_len s k_min k_max with
         | None ->
           update_k_max k_max;
-          loop ()
+
+          if !k_max >= Atomic.get len_min_sol then None
+          else loop @@ max k_min (Atomic.get max_completed_k)
         | res -> res
       in
-      loop ()
+      loop k_min
     end
   with Stop -> None
 
@@ -212,8 +212,8 @@ let dominating_aux g dom_min dom_max =
   (* We reset the global variables *)
   Atomic.set stop false;
   Atomic.set len_min_sol max_int;
-  Atomic.set max_completed_k dom_min;
-  Hashtbl.clear completed_k;
+  Atomic.set max_completed_k (dom_min - 1);
+  Hashtbl.reset completed_k;
 
   (* We define the domains for parallelism *)
   let nb_domains = Domain.recommended_domain_count () in

@@ -121,19 +121,20 @@ let len_min_sol = Atomic.make max_int
 
 let max_completed_k = Atomic.make min_int
 
+let mutex_compled_k = Mutex.create ()
+
+let completed_k = Hashtbl.create 16
+
 (* Auxiliary function of dominating_k *)
 
 let rec dominating_k_aux g s_len s k_min k_max =
-  if
-    Atomic.get len_min_sol < k_min
-    || Atomic.get stop
-    || !k_max < Atomic.get max_completed_k
-  then raise Stop;
+  if Atomic.get len_min_sol < k_min || Atomic.get stop then raise Stop;
 
   if
     s_len > !k_max
     || Graph.get_blacknode_count g
        > Graph.max_possible_domination g (!k_max - s_len)
+    || !k_max <= Atomic.get max_completed_k
   then None
   else if Graph.get_blacknode_count g = 0 then begin
     if s_len < Atomic.get len_min_sol then Atomic.set len_min_sol s_len;
@@ -163,6 +164,27 @@ let rec dominating_k_aux g s_len s k_min k_max =
 
 (* Main function of dominating_k *)
 
+let update_k_max k_max =
+  if Atomic.get max_completed_k < !k_max then Atomic.set max_completed_k !k_max;
+
+  let rec loop () =
+    match Hashtbl.find_opt completed_k !k_max with
+    | None -> ()
+    | Some _ ->
+      incr k_max;
+      loop ()
+  in
+
+  k_max := Atomic.get max_completed_k + 1;
+
+  Mutex.lock mutex_compled_k;
+  loop ();
+  Mutex.unlock mutex_compled_k;
+
+  Mutex.lock mutex_compled_k;
+  Hashtbl.replace completed_k !k_max ();
+  Mutex.unlock mutex_compled_k
+
 let dominating_k g k_min k_max =
   let k_max = ref k_max in
   let g, s_len, s =
@@ -172,15 +194,11 @@ let dominating_k g k_min k_max =
   try
     begin
       let rec loop () =
-        match
-          dominating_k_aux g s_len s
-            (max k_min (Atomic.get max_completed_k))
-            k_max
-        with
+        let k_min = max k_min (Atomic.get max_completed_k) in
+
+        match dominating_k_aux g s_len s k_min k_max with
         | None ->
-          if Atomic.get max_completed_k < !k_max then
-            Atomic.set max_completed_k !k_max;
-          k_max := Atomic.get max_completed_k + 1;
+          update_k_max k_max;
           loop ()
         | res -> res
       in
@@ -195,6 +213,7 @@ let dominating_aux g dom_min dom_max =
   Atomic.set stop false;
   Atomic.set len_min_sol max_int;
   Atomic.set max_completed_k dom_min;
+  Hashtbl.clear completed_k;
 
   (* We define the domains for parallelism *)
   let nb_domains = Domain.recommended_domain_count () in
@@ -221,6 +240,8 @@ let dominating_aux g dom_min dom_max =
 
     args |> List.rev |> loop (List.length args) |> List.sort_uniq compare
   in
+
+  List.iter (fun (_, k_max) -> Hashtbl.replace completed_k k_max ()) args;
 
   let doms =
     List.map

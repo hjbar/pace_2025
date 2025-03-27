@@ -6,7 +6,7 @@ outsave:
 
 fullclean: clean outclean
 	@find . -type f -name "*.dot" -delete
-	@find . -type f -name "*.pdf" -delete
+	@find . -type f -name "*.pdf" ! -path "./doc/*" -delete
 
 outclean: clean
 	@find . -type f -name "*.out" -delete
